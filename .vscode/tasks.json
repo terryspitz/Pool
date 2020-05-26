@@ -1,0 +1,41 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "start",
+			"problemMatcher": [],
+			"label": "npm: start",
+			"detail": "webpack-dev-server",
+            "group": "build",
+			// "group": {
+			// 	"kind": "build",
+			// 	"isDefault": true
+			// }
+		},
+		{
+			"type": "npm",
+			"script": "install",
+			"label": "npm: install",
+			"detail": "install dependencies from package",
+			"group": "build",
+			"problemMatcher": "$fable-webpack",
+		},
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "shell",
+            "args": [
+				"build",
+				"./src/App.fsproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent"
+            },
+            "problemMatcher": "$msCompile"
+        },
+	]
+}
