@@ -13,7 +13,7 @@ let update _ =
     let start = DateTime.UtcNow.Ticks
     time <- time + intervalMs
     (document.getElementById "pool").innerHTML <- poolHtml (time/1000.0)
-    //printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/int64 10000)
+    printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/int64 10000)
 
 update []
 let timer = new System.Timers.Timer(intervalMs)
