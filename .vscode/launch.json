@@ -3,5 +3,30 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": []
+    "configurations": [
+        {
+            "name": "Launch Program",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/tests/bin/Debug/netcoreapp3.1/PoolTest.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Run Tests",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            // "program": "${workspaceFolder}/src/tests/bin/Debug/netcoreapp3.1/PoolTest.dll",
+            "program": "dotnet",
+            "args": ["test", "${workspaceFolder}/src/tests/PoolTest.fsproj"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+
+    ]
 }

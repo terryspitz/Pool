@@ -21,13 +21,21 @@
 			"group": "build",
 			"problemMatcher": "$fable-webpack",
 		},
+		{
+            "type": "npm",
+            "script": "build",
+            "detail": "webpack-dev-server",
+            "group": "build",
+			"label": "npm: build",
+			"problemMatcher": "$fable-webpack",
+		},
         {
             "label": "build",
             "command": "dotnet",
             "type": "shell",
             "args": [
 				"build",
-				"./src/App.fsproj",
+				"./Pool.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],
