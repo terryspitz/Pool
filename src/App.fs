@@ -19,7 +19,7 @@ update []
 let timer = new System.Timers.Timer(intervalMs)
 timer.AutoReset <- true
 timer.Elapsed.Add update
-//timer.Start()
+timer.Start()
 let keydown _ = 
     if timer.Enabled then
         timer.Stop()

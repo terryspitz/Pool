@@ -1,8 +1,10 @@
-# Fable Minimal App
+# Pool animation using caustics
 
-This is a small Fable app project so you can easily get started and add your own code easily in it.
+Simulates a swimming pool with waves, refraction and caustics. Uses Fable for F# to JS conversion.
 
-## Requirements
+[Try it now.](https://terryspitz.github.io/Pool/public/index.html)
+
+## Build Requirements
 
 * [dotnet SDK](https://www.microsoft.com/net/download/core) 3.0 or higher
 * [node.js](https://nodejs.org) with [npm](https://www.npmjs.com/)
