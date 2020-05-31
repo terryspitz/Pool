@@ -6,7 +6,7 @@ open System.Diagnostics
 open MyArray2D
 
 let tau = 2.0 * Math.PI
-let frequencies = 7
+let frequencies = 15
 let coeffs = MyArray2D(frequencies*2+1, frequencies*2+1)
 let phase = MyArray2D(frequencies*2+1, frequencies*2+1)
 let rnd = System.Random(42)  // seeds not supported by Fable or js
