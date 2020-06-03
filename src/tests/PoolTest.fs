@@ -67,3 +67,19 @@ let ``crop poly by unit square leaving partial`` () =
     let poly = {pts=[| {X=0.0;Y=0.0}; {X=0.0;Y=2.0}; {X=1.0;Y=(-6.0)} |] }
     let croppedPoly = {pts=[|{X=0.0;Y=0.0}; {X=0.0;Y=1.0}; {X=0.125;Y=1.0}; {X=0.25;Y=0.0}|]}
     Assert.AreEqual(Array.sort croppedPoly.pts, Array.sort poly.CropUnitSquare.pts)
+
+[<Test>]
+let fastCosTest () = 
+    Assert.AreEqual(1. ,fastCos(0.))
+    Assert.AreEqual(0. ,fastCos((3.14159265/2.)))
+    Assert.AreEqual(-1., fastCos(3.14159265))
+    Assert.AreEqual(0. ,fastCos(3.14159265*3./2.))
+    Assert.AreEqual(1. ,fastCos(3.14159265*2.))
+    Assert.AreEqual(0. ,fastCos(3.14159265*5./2.))
+    Assert.AreEqual(-1., fastCos(3.14159265*3.))
+    Assert.AreEqual(0. ,fastCos(-3.14159265/2.))
+    Assert.AreEqual(-1., fastCos(-3.14159265))
+    Assert.AreEqual(0. ,fastCos(-3.14159265*3./2.))
+    Assert.AreEqual(1. ,fastCos(-3.14159265*2.))
+    Assert.AreEqual(0. ,fastCos(-3.14159265*5./2.))
+    Assert.AreEqual(-1., fastCos(-3.14159265*3.))

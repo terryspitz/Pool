@@ -6,7 +6,7 @@ open System.Diagnostics
 open MyArray2D
 
 let tau = 2.0 * Math.PI
-let frequencies = 15
+let frequencies = 11
 let coeffs = MyArray2D(frequencies*2+1, frequencies*2+1)
 let phase = MyArray2D(frequencies*2+1, frequencies*2+1)
 let rnd = System.Random(42)  // seeds not supported by Fable or js
@@ -16,27 +16,31 @@ for i in -frequencies..frequencies do
             coeffs.[(i+frequencies, j+frequencies)] <- (rnd.NextDouble() - 0.5) /  (float ((i*i + j*j)))
             phase.[(i+frequencies, j+frequencies)] <- rnd.NextDouble() * tau
 
+/// https://gist.github.com/geraldyeo/988116 simplified
+let fastCos x = 
+    let mutable x = x / 3.14159265 + 1.5
+    let xx = 2. * floor (x / 2.)
+    x <- x - xx - 1.
+    assert (-1.<=x && x<1.)
+    if x < 0. then
+        4. * (1.+x) * x
+    else
+        4. * (1.-x) * x
 
-let Calc1D x y axis time =
+let CalcDerivs x y time =
     let speed = 0.05
-    let scaling = 0.1
-    let sgn x = if x<0 then -1.0 else 1.0
-    let mutable f = 0.0
-    if axis = 0 then
-        for i in -frequencies..frequencies do
-            let iSign = float (Math.Sign i)
-            for j in -frequencies..frequencies do
-                let jSign = float (Math.Sign j)
-                let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
-                f <- f + amp * (float i) * cos (Math.PI * ((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
-     elif axis = 1 then
-        for i in -frequencies..frequencies do
-            let iSign = float (Math.Sign i)
-            for j in -frequencies..frequencies do
-                let jSign = float (Math.Sign j)
-                let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
-                f <- f + amp * (float j) * cos (Math.PI * ((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
-    f*scaling
+    let scaling = 0.08
+    let sgn x = if x<0 then -1. else 1.
+    let mutable dx, dy = 0., 0.
+    for i in -frequencies..frequencies do
+        let iSign = sgn i
+        for j in -frequencies..frequencies do
+            let jSign = sgn j
+            let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
+            let costheta = fastCos (Math.PI * ((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
+            dx <- dx + amp * (float i) * costheta
+            dy <- dy + amp * (float j) * costheta
+    dx*scaling, dy*scaling
 
 [<Struct>]
 type Point = { X: float; Y: float }
@@ -100,31 +104,33 @@ with
     static member NearUnitSquare = {pts=[|{X=0.1;Y=0.1}; {X=0.1;Y=0.9}; {X=0.9;Y=0.9}; {X=0.9;Y=0.1}|]}
 
 let poolHtml time = 
-    let mult = 3
+    let mult = 1
     let w = 16 * mult
     let h = 9 * mult
     let scale = float (min w h)
     let ds = 1.0 / scale
-    let grid = scale*2.0
-    let mutable dx1 = [|for col in 0..w do Calc1D 0.0 (float col / scale) 0 time|]
-    let mutable dy1 = [|for col in 0..w do Calc1D 0.0 (float col / scale) 1 time|]
+    let grid = scale * 2.0
+    let mutable derivs1 = Array.create (w+1) (0., 0.)
+    let mutable derivs2 = Array.create (w+1) (0., 0.)
+    for col in 0..w do
+        derivs1.[col] <- CalcDerivs 0. (float col * ds) time
     let svg = 
         [for row in 0..h-1 do
-            let rr = float row / scale
-            let dx2 = [|for col in 0..w do Calc1D (rr+ds) (float col / scale) 0 time|]
-            let dy2 = [|for col in 0..w do Calc1D (rr+ds) (float col / scale) 1 time|]
+            let rr = float row * ds
+            for col in 0..w do
+                derivs2.[col] <- CalcDerivs (rr+ds) (float col * ds) time
             for col in 0..w-1 do
                 let debug = row=0 && col=0
                 let debug = false
-                let cc = float col / scale
-                let xtl = cc    + dx1.[col]
-                let ytl = rr    + dy1.[col]
-                let xtr = cc+ds + dx1.[col+1]
-                let ytr = rr    + dy1.[col+1]
-                let xbl = cc    + dx2.[col]
-                let ybl = rr+ds + dy2.[col]
-                let xbr = cc+ds + dx2.[col+1]
-                let ybr = rr+ds + dy2.[col+1]
+                let cc = float col * ds
+                let xtl = cc    + fst derivs1.[col]
+                let ytl = rr    + snd derivs1.[col]
+                let xtr = cc+ds + fst derivs1.[col+1]
+                let ytr = rr    + snd derivs1.[col+1]
+                let xbl = cc    + fst derivs2.[col]
+                let ybl = rr+ds + snd derivs2.[col]
+                let xbr = cc+ds + fst derivs2.[col+1]
+                let ybr = rr+ds + snd derivs2.[col+1]
                 if debug then
                     printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
                 let simple = true
@@ -188,19 +194,18 @@ let poolHtml time =
                                 yield! (poly+s0).ToSvg "4444ff"
                             // else
                             //     yield! (Poly.NearUnitSquare+s0).ToSvg "ff0000"
-            dx1 <- dx2
-            dy1 <- dy2
+            for col in 0..w do
+                derivs1.[col] <- derivs2.[col]
         ]
 
-    String.concat "\n" (
-        [
-            "<svg xmlns='http://www.w3.org/2000/svg'"
-            sprintf "   viewBox='0 0 %d %d'>" w h
-            // sprintf "   viewBox='-0.5 -0.5 %d.5 %d.5' style='position: relative; top: 50%%; left: 50%%; transform: translate(-50%%, -50%%);'>" (w+1) (h+1)
-            "<g id='layer1'>"
-        ] @
-        svg @ 
-        [
-            "</g>"
-            "</svg>"
-        ])
+    [
+        "<svg xmlns='http://www.w3.org/2000/svg'"
+        sprintf "   viewBox='0 0 %d %d'>" w h
+        // sprintf "   viewBox='-0.5 -0.5 %d.5 %d.5' style='position: relative; top: 50%%; left: 50%%; transform: translate(-50%%, -50%%);'>" (w+1) (h+1)
+        "<g id='layer1'>"
+    ] @
+    svg @ 
+    [
+        "</g>"
+        "</svg>"
+    ]
