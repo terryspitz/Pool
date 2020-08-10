@@ -12,10 +12,10 @@ open MyArray2D
 // apply caustics and projection together
 // add specular highlights
 // reimplement in Three.js shader (!)
-
+// implment in shadertoy
 
 let tau = 2.0 * Math.PI
-let frequencies = 11
+let frequencies = 9
 let coeffs = MyArray2D(frequencies*2+1, frequencies*2+1)
 let phase = MyArray2D(frequencies*2+1, frequencies*2+1)
 let rnd = System.Random(42)  // seeds not supported by Fable or js
@@ -26,8 +26,9 @@ for i in -frequencies..frequencies do
             phase.[(i+frequencies, j+frequencies)] <- rnd.NextDouble() * tau
 
 /// https://gist.github.com/geraldyeo/988116 simplified
+/// note: x is radians/PI
 let fastCos x = 
-    let mutable x = x / 3.14159265 + 1.5
+    let mutable x = x + 1.5
     let xx = 2. * floor (x / 2.)
     x <- x - xx - 1.
     assert (-1.<=x && x<1.)
@@ -36,25 +37,31 @@ let fastCos x =
     else
         4. * (1.-x) * x
 
-let CalcDerivs x y time =
+let CalcDerivs (derivs:(float*float) array) ds y time =
     let speed = 0.05
-    let scaling = 0.03
+    let scaling = 0.1
     let sgn x = if x<0 then -1. else 1.
-    let mutable dx, dy = 0., 0.
-    for i in -frequencies..frequencies do
-        let iSign = sgn i
-        for j in -frequencies..frequencies do
-            let jSign = sgn j
-            let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
-            let costheta = fastCos (Math.PI * ((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
-            dx <- dx + amp * (float i) * costheta
-            dy <- dy + amp * (float j) * costheta
-    dx*scaling, dy*scaling
+    for col in 0..derivs.Length-1 do
+        let x = float col * ds
+        let mutable dx, dy = 0., 0.
+        for i in -frequencies..frequencies do
+            let iSign = sgn i
+            for j in -frequencies..frequencies do
+                let jSign = sgn j
+                let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
+                let costheta = fastCos (((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
+                dx <- dx + amp * (float i) * costheta
+                dy <- dy + amp * (float j) * costheta
+        derivs.[col] <- (dx*scaling, dy*scaling)
+
+let colours1 = [|for a in 0..100 do sprintf "rgba(155,255,255,%f)" (float a/80.)|]
+// let colours2 = [|for a in 0..100 do sprintf "rgba(110,90,40,%f)" (Math.Pow(float a, 1.5)/3000.)|]
+let cross x1 y1 x2 y2 = abs (x1*y2-x2*y1)
 
 let drawCaustics (ctx : CanvasRenderingContext2D) time = 
     let debug = false
     let mutable minmaxarea = (1.,0.) 
-    let res = 75.
+    let res = 30.
     let w = int (ctx.canvas.width / res)
     let h = int (ctx.canvas.height / res)
     let scale = float (min w h)
@@ -63,43 +70,52 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time =
     let margin = 5
     let mutable derivs1 = Array.create (w+margin*2) (0.,0.)
     let mutable derivs2 = Array.create (w+margin*2) (0.,0.)
-    for col in -margin..w+margin do
-        derivs1.[col+margin] <- CalcDerivs (float col * ds) (float -margin * ds) time
-    for row in -margin..h+margin-1 do
+    
+    CalcDerivs derivs1 ds (float -margin * ds) time
+    for row in -margin..h+margin-2 do
         let py = float row * ds
-        for col in -margin..w+margin do
-            derivs2.[col+margin] <- CalcDerivs (float col * ds) (py+ds) time
-        for col in -margin..w+margin-1 do
+        CalcDerivs derivs2 ds (py+ds) time
+        for col in -margin..w+margin-2 do
             let px = float col * ds
-            let xtl = px-ds2 + fst derivs1.[col+margin]
-            let ytl = py-ds2 + snd derivs1.[col+margin]
-            let xtr = px+ds2 + fst derivs1.[col+margin+1]
-            let ytr = py-ds2 + snd derivs1.[col+margin+1]
-            let xbl = px-ds2 + fst derivs2.[col+margin]
-            let ybl = py+ds2 + snd derivs2.[col+margin]
-            let xbr = px+ds2 + fst derivs2.[col+margin+1]
-            let ybr = py+ds2 + snd derivs2.[col+margin+1]
+            //js likes it spelled out real slow for best perf
+            let colm1 = col+margin
+            let colm2 = colm1+1
+            let px1 = px-ds2
+            let px2 = px+ds2
+            let py1 = py-ds2
+            let py2 = py+ds2
+            let d11 = derivs1.[colm1]
+            let d12 = derivs1.[colm2]
+            let d21 = derivs2.[colm1]
+            let d22 = derivs2.[colm2]
+            let xtl = px1 + fst d11
+            let ytl = py1 + snd d11
+            let xtr = px2 + fst d12
+            let ytr = py1 + snd d12
+            let xbl = px1 + fst d21
+            let ybl = py2 + snd d21
+            let xbr = px2 + fst d22
+            let ybr = py2 + snd d22
             // printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
 
-            let cross x1 y1 x2 y2 = abs (x1*y2-x2*y1)
             let area = (cross (xtr-xtl) (ytr-ytl) (xbl-xtl) (ybl-ytl) + cross (xtr-xbr) (ytr-ybr) (xbl-xbr) (ybl-ybr) ) / 2. * scale * scale
+            let alpha = min (0.6/area) 1.0
+            // let colour = sprintf "rgba(155,255,255,%f)" alpha
+            let colour = colours1.[int(alpha*100.)]
+            // let colour = sprintf "#4e727c%x" (int (alpha*255.))
             ctx.beginPath()
             ctx.moveTo(xtl, ytl)
-            let offset = -0.000
-            ctx.lineTo(xtr-offset, ytr)
-            ctx.lineTo(xbr-offset, ybr-offset)
-            ctx.lineTo(xbl, ybl-offset)
+            ctx.lineTo(xtr, ytr)
+            ctx.lineTo(xbr, ybr)
+            ctx.lineTo(xbl, ybl)
             ctx.closePath()
-            let alpha = min (0.6/area) 1.0
-            let colour = sprintf "rgba(155,255,255,%f)" alpha
-            // let colour = sprintf "#4e727c%x" (int (alpha*255.))
             ctx.fillStyle <- U3.Case1 colour
-            if debug then
-                printfn "%A" colour
             ctx.fill()
             if debug then
+                printfn "%A" colour
+            if debug then
                 minmaxarea <- (min alpha (fst minmaxarea), max alpha (snd minmaxarea))
-    
+
         for col in -margin..w+margin do
             derivs1.[col+margin] <- derivs2.[col+margin]
 
@@ -169,22 +185,22 @@ with
     static member UnitSquare = {pts=[|{X=0.0;Y=0.0}; {X=0.0;Y=1.0}; {X=1.0;Y=1.0}; {X=1.0;Y=0.0}|]}
     static member NearUnitSquare = {pts=[|{X=0.1;Y=0.1}; {X=0.1;Y=0.9}; {X=0.9;Y=0.9}; {X=0.9;Y=0.1}|]}
 
+/// Render causics as SVG
+/// Map the distorted pool bottom back to screen coords in tiles
 let poolHtml time = 
     let mult = 2
     let w = 16 * mult
     let h = 9 * mult
     let scale = float (min w h)
     let ds = 1.0 / scale
-    let grid = scale * 1.0
+    let grid = scale
     let mutable derivs1 = Array.create (w+1) (0., 0.)
     let mutable derivs2 = Array.create (w+1) (0., 0.)
-    for col in 0..w do
-        derivs1.[col] <- CalcDerivs 0. (float col * ds) time
+    CalcDerivs derivs1 ds 0. time
     let svg = 
         [for row in 0..h-1 do
             let rr = float row * ds
-            for col in 0..w do
-                derivs2.[col] <- CalcDerivs (rr+ds) (float col * ds) time
+            CalcDerivs derivs2 ds (rr+ds) time
             for col in 0..w-1 do
                 let debug = row=0 && col=0
                 let debug = false

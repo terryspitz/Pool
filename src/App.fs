@@ -16,23 +16,31 @@ let canvas = document.getElementById "canvas" :?> HTMLCanvasElement
 let ctx = canvas.getContext_2d()
 ctx.strokeStyle <- U3.Case1 "#000000"
 
+type HtmlOrCanvas = 
+    | Html | Canvas
+
 let update() =
+    let htmlOrCanvas = Canvas
     let start = DateTime.UtcNow.Ticks
     timeMs <- timeMs + intervalMs
-    pool.innerHTML <- String.concat "\n" (poolHtml timeMs)
+    if htmlOrCanvas = Html then
+        pool.innerHTML <- String.concat "\n" (poolHtml timeMs)
     canvas.width <- window.innerWidth
     canvas.height <- window.innerHeight
     let ctx = canvas.getContext_2d()
     ctx.setTransform(1., 0., 0., 1., 0., 0.)
-    // ctx.scale(canvas.height, canvas.height)
-    ctx.scale(100., 100.)
+    if htmlOrCanvas = Html then
+        ctx.scale(100., 100.)
+    else
+        ctx.scale(canvas.height, canvas.height)
     ctx.fillStyle <- U3.Case1 "#146897" //from pool.jpg
     ctx.fillRect(0., 0., canvas.width, canvas.height)
-    // drawCaustics ctx timeMs
+    if htmlOrCanvas = Canvas then
+        drawCaustics ctx timeMs
 
     printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/10000L)
 
-let mutable timerOn = false
+let mutable timerOn = true
 
 let rec animate (dt:float) =
     if timerOn then
@@ -42,8 +50,8 @@ let rec animate (dt:float) =
 let flipTimer _ =
     timerOn <- not timerOn
     animate 0.
-document.onkeydown <- flipTimer
-document.onclick <- flipTimer
+document.body.onkeydown <- flipTimer
+document.body.onclick <- flipTimer
 
 update ()
 animate 0.

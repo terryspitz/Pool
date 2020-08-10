@@ -13,9 +13,8 @@ type MyArray2D(r, c) =
     ///Can't override (.[,]) so take a tuple instead
     //member this.(.[]) (i : int * int) = 
     member this.Item
-      //with get (i : int * int) : float = arr.[(fst i)*c + (snd i)]
       with get (i : int * int) : float =
-        assert ((fst i)<r && (snd i)<c)
+        // assert ((fst i)<r && (snd i)<c)
         _arr.[(fst i)*c + (snd i)]
       and set (i : int * int) (value : float) =
         assert ((fst i)<r && (snd i)<c)
