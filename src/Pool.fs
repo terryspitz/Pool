@@ -38,7 +38,7 @@ let fastCos x =
         4. * (1.-x) * x
 
 let CalcDerivs (derivs:(float*float) array) ds y time =
-    let speed = 0.05
+    let speed = 0.002
     let scaling = 0.1
     let sgn x = if x<0 then -1. else 1.
     for col in 0..derivs.Length-1 do

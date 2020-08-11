@@ -9,8 +9,8 @@ open Browser.Dom
 open Pool
 
 
-let intervalMs = 0.08
 let mutable timeMs = 0.
+let mutable counter = 0
 let pool = document.getElementById "pool"
 let canvas = document.getElementById "canvas" :?> HTMLCanvasElement
 let ctx = canvas.getContext_2d()
@@ -22,7 +22,15 @@ type HtmlOrCanvas =
 let update() =
     let htmlOrCanvas = Canvas
     let start = DateTime.UtcNow.Ticks
-    timeMs <- timeMs + intervalMs
+    counter <- counter + 1
+    // speed varies fast/slow
+    // timeMs <- timeMs + (1.1 + sin (float counter / 50.))
+    if counter % 500 < 250 then
+        timeMs <- timeMs + 0.1
+    elif counter % 500 < 275 then
+        timeMs <- timeMs + 0.5
+    else
+        timeMs <- timeMs + 2.
     if htmlOrCanvas = Html then
         pool.innerHTML <- String.concat "\n" (poolHtml timeMs)
     canvas.width <- window.innerWidth
@@ -37,6 +45,9 @@ let update() =
     ctx.fillRect(0., 0., canvas.width, canvas.height)
     if htmlOrCanvas = Canvas then
         drawCaustics ctx timeMs
+        ctx.fillStyle <- U3.Case1 "black"
+        ctx.font <- "10px Georgia"
+        ctx.fillText("Click any key to stop/start animation.", canvas.width/2., canvas.height/2., canvas.width)
 
     printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/10000L)
 
@@ -50,7 +61,7 @@ let rec animate (dt:float) =
 let flipTimer _ =
     timerOn <- not timerOn
     animate 0.
-document.body.onkeydown <- flipTimer
+// document.body.onkeydown <- flipTimer
 document.body.onclick <- flipTimer
 
 update ()
