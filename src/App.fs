@@ -10,7 +10,7 @@ open Pool
 
 
 let mutable timeMs = 0.
-let mutable counter = 0
+let mutable counter = 200
 let pool = document.getElementById "pool"
 let canvas = document.getElementById "canvas" :?> HTMLCanvasElement
 let ctx = canvas.getContext_2d()
@@ -25,10 +25,10 @@ let update() =
     counter <- counter + 1
     // speed varies fast/slow
     // timeMs <- timeMs + (1.1 + sin (float counter / 50.))
-    if counter % 500 < 250 then
+    if counter % 500 > 250 then
         timeMs <- timeMs + 0.1
-    elif counter % 500 < 275 then
-        timeMs <- timeMs + 0.5
+    // elif counter % 500 < 25 then
+    //     timeMs <- timeMs + 0.5
     else
         timeMs <- timeMs + 2.
     if htmlOrCanvas = Html then
