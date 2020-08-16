@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26124.0
 MinimumVisualStudioVersion = 15.0.26124.0
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "app", "src\app.fsproj", "{6B2BF56A-6949-49FB-89B7-B8585308E4CB}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "app", "src\App.fsproj", "{6B2BF56A-6949-49FB-89B7-B8585308E4CB}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Pool", "src\tests\PoolTest.fsproj", "{AD71CB4B-5FC7-46DC-9F32-E287EF3E2235}"
 EndProject
