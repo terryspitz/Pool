@@ -12,20 +12,21 @@ open MyArray2D
 // apply caustics and projection together
 // add specular highlights
 // reimplement in Three.js shader (!)
-// implment in shadertoy
+// implement in shadertoy.com
 
 let tau = 2.0 * Math.PI
 let frequencies = 9
 let coeffs = MyArray2D(frequencies*2+1, frequencies*2+1)
 let phase = MyArray2D(frequencies*2+1, frequencies*2+1)
-let rnd = System.Random(42)  // seeds not supported by Fable or js
+let rnd = System.Random(42)  // seeds not supported (ignored) by Fable or js
 for i in -frequencies..frequencies do
     for j in -frequencies..frequencies do
         if i<>0 || j<>0 then
             coeffs.[(i+frequencies, j+frequencies)] <- (rnd.NextDouble() - 0.5) /  (float ((i*i + j*j)))
             phase.[(i+frequencies, j+frequencies)] <- rnd.NextDouble() * tau
 
-/// https://gist.github.com/geraldyeo/988116 simplified
+/// approximate cos with two parabolas
+/// from https://gist.github.com/geraldyeo/988116 then simplified
 /// note: x is radians/PI
 let fastCos x = 
     let mutable x = x + 1.5
@@ -37,12 +38,15 @@ let fastCos x =
     else
         4. * (1.-x) * x
 
-let CalcDerivs (derivs:(float*float) array) ds y time =
+/// Updates derivs 1d array with (dx,dy) pairs for all x coordinates at a given y coordinate
+/// The derivatives represent the amount of refraction horizontally, 
+/// i.e. the cos of angle of wave surface normal from vertical at each point in x and y direction.
+let CalcDerivs (derivs:(float*float) array) ds y margin time =
     let speed = 0.002
     let scaling = 0.1
     let sgn x = if x<0 then -1. else 1.
     for col in 0..derivs.Length-1 do
-        let x = float col * ds
+        let x = float (col - margin) * ds
         let mutable dx, dy = 0., 0.
         for i in -frequencies..frequencies do
             let iSign = sgn i
@@ -58,32 +62,36 @@ let colours1 = [|for a in 0..100 do sprintf "rgba(155,255,255,%f)" (float a/80.)
 // let colours2 = [|for a in 0..100 do sprintf "rgba(110,90,40,%f)" (Math.Pow(float a, 1.5)/3000.)|]
 let cross x1 y1 x2 y2 = abs (x1*y2-x2*y1)
 
-let drawCaustics (ctx : CanvasRenderingContext2D) time = 
+/// For each grid square representing an incoming patch of light, refract the corner coordinates onto
+/// the bottom surface of the pool and draw that quadrilateral with an alpha inversely proportional area 
+/// (representing dispertion of the energy).
+let drawCaustics (ctx : CanvasRenderingContext2D) time res = 
     let debug = false
     let mutable minmaxarea = (1.,0.) 
-    let res = 30.
     let w = int (ctx.canvas.width / res)
     let h = int (ctx.canvas.height / res)
     let scale = float (min w h)
-    let ds = 1. / float scale
+    let ds = res / (min ctx.canvas.width ctx.canvas.height)
     let ds2 = ds/2.0
     let margin = 5
+    // store the derivatives at top and bottom y coordinates of each row
     let mutable derivs1 = Array.create (w+margin*2) (0.,0.)
     let mutable derivs2 = Array.create (w+margin*2) (0.,0.)
-    
-    CalcDerivs derivs1 ds (float -margin * ds) time
+    if debug then
+        printfn "canvas %f, %f, w,h=%d, %d, ds=%f" ctx.canvas.width ctx.canvas.height w h ds
+    CalcDerivs derivs1 ds (float -margin * ds) margin time
     for row in -margin..h+margin-2 do
         let py = float row * ds
-        CalcDerivs derivs2 ds (py+ds) time
+        CalcDerivs derivs2 ds (py+ds) margin time
         for col in -margin..w+margin-2 do
             let px = float col * ds
-            //js likes it spelled out real slow for best perf
+            //js likes it spelled out real simple for best performance
             let colm1 = col+margin
             let colm2 = colm1+1
-            let px1 = px-ds2
-            let px2 = px+ds2
-            let py1 = py-ds2
-            let py2 = py+ds2
+            let px1 = px
+            let px2 = px+ds
+            let py1 = py
+            let py2 = py+ds
             let d11 = derivs1.[colm1]
             let d12 = derivs1.[colm2]
             let d21 = derivs2.[colm1]
@@ -96,7 +104,8 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time =
             let ybl = py2 + snd d21
             let xbr = px2 + fst d22
             let ybr = py2 + snd d22
-            // printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
+            if debug then
+                printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
 
             let area = (cross (xtr-xtl) (ytr-ytl) (xbl-xtl) (ybl-ytl) + cross (xtr-xbr) (ytr-ybr) (xbl-xbr) (ybl-ybr) ) / 2. * scale * scale
             let alpha = min (0.6/area) 1.0
@@ -113,7 +122,6 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time =
             ctx.fill()
             if debug then
                 printfn "%A" colour
-            if debug then
                 minmaxarea <- (min alpha (fst minmaxarea), max alpha (snd minmaxarea))
 
         for col in -margin..w+margin do
@@ -196,11 +204,11 @@ let poolHtml time =
     let grid = scale
     let mutable derivs1 = Array.create (w+1) (0., 0.)
     let mutable derivs2 = Array.create (w+1) (0., 0.)
-    CalcDerivs derivs1 ds 0. time
+    CalcDerivs derivs1 ds 0. 0 time
     let svg = 
         [for row in 0..h-1 do
             let rr = float row * ds
-            CalcDerivs derivs2 ds (rr+ds) time
+            CalcDerivs derivs2 ds (rr+ds) 0 time
             for col in 0..w-1 do
                 let debug = row=0 && col=0
                 let debug = false

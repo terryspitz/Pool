@@ -23,10 +23,18 @@
 		},
 		{
             "type": "npm",
-            "script": "build",
+            "script": "build-dev",
             "detail": "webpack-dev-server",
             "group": "build",
-			"label": "npm: build",
+			"label": "npm: build-dev",
+			"problemMatcher": "$fable-webpack",
+		},
+		{
+            "type": "npm",
+            "script": "build-prod",
+            "detail": "webpack-dev-server",
+            "group": "build",
+			"label": "npm: build-prod",
 			"problemMatcher": "$fable-webpack",
 		},
         {
