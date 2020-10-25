@@ -62,8 +62,8 @@ let colours1 = [|for a in 0..100 do sprintf "rgba(155,255,255,%f)" (float a/80.)
 // let colours2 = [|for a in 0..100 do sprintf "rgba(110,90,40,%f)" (Math.Pow(float a, 1.5)/3000.)|]
 let cross x1 y1 x2 y2 = abs (x1*y2-x2*y1)
 
-/// For each grid square representing an incoming patch of light, refract the corner coordinates onto
-/// the bottom surface of the pool and draw that quadrilateral with an alpha inversely proportional area 
+/// For each grid square representing an incoming patch of light, refract the four corner coordinates onto
+/// the bottom surface of the pool and draw that quadrilateral with an alpha inversely proportional to area 
 /// (representing dispertion of the energy).
 let drawCaustics (ctx : CanvasRenderingContext2D) time res = 
     let debug = false
