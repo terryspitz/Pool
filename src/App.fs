@@ -30,7 +30,7 @@ let update() =
         else
             10.
     timeMs <- timeMs + 2.
-    printfn "res %f" res
+    // printfn "res %f" res
     match htmlOrCanvasMode with
     | Html ->
         pool.innerHTML <- String.concat "\n" (poolHtml timeMs)

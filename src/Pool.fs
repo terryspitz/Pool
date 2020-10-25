@@ -89,24 +89,24 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time res =
             let colm1 = col+margin
             let colm2 = colm1+1
             let px1 = px
-            let px2 = px+ds
             let py1 = py
+            let px2 = px+ds
             let py2 = py+ds
-            let d11 = derivs1.[colm1]
-            let d12 = derivs1.[colm2]
-            let d21 = derivs2.[colm1]
-            let d22 = derivs2.[colm2]
-            let xtl = px1 + fst d11
-            let ytl = py1 + snd d11
-            let xtr = px2 + fst d12
-            let ytr = py1 + snd d12
-            let xbl = px1 + fst d21
-            let ybl = py2 + snd d21
-            let xbr = px2 + fst d22
-            let ybr = py2 + snd d22
+            let d11x,d11y = derivs1.[colm1]
+            let d12x,d12y = derivs1.[colm2]
+            let d21x,d21y = derivs2.[colm1]
+            let d22x,d22y = derivs2.[colm2]
+            let xtl = px1 + d11x
+            let ytl = py1 + d11y
+            let xtr = px2 + d12x
+            let ytr = py1 + d12y
+            let xbl = px1 + d21x
+            let ybl = py2 + d21y
+            let xbr = px2 + d22x
+            let ybr = py2 + d22y
             if debug then
                 printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
-
+            // printfn "%f %f" d11x d11y
             let area = (cross (xtr-xtl) (ytr-ytl) (xbl-xtl) (ybl-ytl) + cross (xtr-xbr) (ytr-ybr) (xbl-xbr) (ybl-ybr) ) / 2. * scale * scale
             let alpha = min (0.6/area) 1.0
             // let colour = sprintf "rgba(155,255,255,%f)" alpha
@@ -123,6 +123,17 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time res =
             if debug then
                 printfn "%A" colour
                 minmaxarea <- (min alpha (fst minmaxarea), max alpha (snd minmaxarea))
+            // Add specular highlights - but looks too blocky
+            let specular = false
+            if specular && 0.1 < d11x && d11x < 0.15 && 0. < d11y && d11y < 0.05 then
+                ctx.beginPath()
+                ctx.moveTo(px1, py1)
+                ctx.lineTo(px1, py2)
+                ctx.lineTo(px2, py2)
+                ctx.lineTo(px2, py1)
+                ctx.closePath()
+                ctx.fillStyle <- U3.Case1 "white"
+                ctx.fill()
 
         for col in -margin..w+margin do
             derivs1.[col+margin] <- derivs2.[col+margin]

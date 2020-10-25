@@ -9,7 +9,7 @@ Simulates a swimming pool with [waves](https://en.wikipedia.org/wiki/Wave_equati
 Uses [Fable](https://fable.io/) for F# to JS conversion.
 
 [Try it now.](https://terryspitz.github.io/Pool/public/index.html)
-![caustic](png/Screenshot.png)
+[![caustic](png/Screenshot.png)](https://terryspitz.github.io/Pool/public/index.html)
 
 ## Build Requirements
 
