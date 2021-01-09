@@ -5,7 +5,8 @@ open System.Diagnostics
 open Fable.Core
 open Browser.Types
 open Browser.Dom
-
+open Browser.Css
+open Browser.CssExtensions
 open Pool
 
 type HtmlOrCanvas = 
@@ -35,9 +36,6 @@ let update() =
     | Html ->
         pool.innerHTML <- String.concat "\n" (poolHtml timeMs)
     | Canvas ->
-        canvas.width <- window.innerWidth
-        canvas.height <- window.innerHeight
-        let ctx = canvas.getContext_2d()
         ctx.setTransform(1., 0., 0., 1., 0., 0.)
         ctx.scale(canvas.height, canvas.height)
         ctx.fillStyle <- U3.Case1 "#146897" //from pool.jpg
@@ -54,15 +52,26 @@ let update() =
 let mutable timerOn = true
 
 let rec animate (dt:float) =
-    if timerOn then
+    if timerOn && canvas.style.opacity <> "0" then
         window.requestAnimationFrame(animate) |> ignore
         update ()
+
+let resize(_) = 
+    let scale = 1.
+    canvas.width <- window.innerWidth / scale
+    canvas.height <- window.innerHeight / scale
+    if scale <> 1. then
+        canvas.setAttribute ("style", sprintf "transform-origin: 0 0; transform: scale(%d)" (int scale))
+    update ()
 
 let flipTimer _ =
     timerOn <- not timerOn
     animate 0.
+
 // document.body.onkeydown <- flipTimer
 document.body.onclick <- flipTimer
+window.onresize <- resize
 
+resize()
 update ()
 animate 0.
