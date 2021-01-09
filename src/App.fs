@@ -52,9 +52,10 @@ let update() =
 let mutable timerOn = true
 
 let rec animate (dt:float) =
-    if timerOn && canvas.style.opacity <> "0" then
+    if timerOn then
         window.requestAnimationFrame(animate) |> ignore
-        update ()
+        if canvas.style.opacity <> "0" then
+            update ()
 
 let resize(_) = 
     let scale = 1.
