@@ -6,7 +6,7 @@
     "build-dev": "webpack"
   },
   "dependencies": {
-    "@babel/core": "^7.8.4",
+    "@babel/core": "^7.29.6",
     "fable-compiler": "^2.4.15",
     "fable-loader": "^2.1.8",
     "react": "^16.12.0",
