@@ -4,6 +4,8 @@ open System
 open Fable.Core
 open Browser.Types
 open Browser.Dom
+open Browser.Css
+open Browser.CssExtensions   // getComputedStyle
 open Pool
 
 type RenderMode =
