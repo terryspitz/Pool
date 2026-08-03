@@ -1,15 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <!-- The workflow installs .NET 8 and the runner image carries 8/9/10, so a
+         netcoreapp3.1 test assembly cannot start a test host: vstest aborts with
+         "framework_version=3.1.0 ... to install missing framework". -->
+    <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="nunit" Version="3.12.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="3.15.1" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.4.0" />
+    <!-- NUnit stays on 3.x: 4.0 moved Assert.AreEqual and friends to
+         NUnit.Framework.Legacy.ClassicAssert, which PoolTest.fs uses throughout. -->
+    <PackageReference Include="nunit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Pool.fs is compiled here directly rather than referenced, so it needs the
+         Fable packages it opens. These used to arrive transitively through a
+         ProjectReference to App.fsproj; that reference is gone because App.fsproj
+         still targets netcoreapp3.1 and referencing it from net8.0 is an NU1201.
+         App.fsproj is deliberately left alone: it is the project fable-loader
+         cracks for the webpack build, and retargeting it is a separate question. -->
+    <PackageReference Include="Fable.Core" Version="*" />
+    <PackageReference Include="Fable.Browser.Dom" Version="*" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,10 +33,6 @@
     <Compile Include="../Pool.fs" />
     <Compile Include="PoolTest.fs" />
     <Compile Include="Program.fs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\App.fsproj" />
   </ItemGroup>
 
 </Project>
