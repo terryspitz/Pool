@@ -29,7 +29,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../Array.fs" />
     <Compile Include="../Pool.fs" />
     <Compile Include="PoolTest.fs" />
     <Compile Include="Program.fs" />

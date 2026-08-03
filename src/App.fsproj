@@ -3,8 +3,8 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Array.fs"/>
     <Compile Include="Pool.fs"/>
+    <Compile Include="Gpu.fs"/>
     <Compile Include="App.fs"/>
   </ItemGroup>
   <ItemGroup>

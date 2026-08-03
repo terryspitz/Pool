@@ -9,12 +9,24 @@
     overflow: hidden; /* Hide scrollbars */
     margin: 0;
   }
+  /* overlay rather than canvas text, so it is not redrawn every frame */
+  #stats, #hint {
+    position: fixed;
+    left: 8px;
+    font: 14px Georgia, serif;
+    color: #000;
+    pointer-events: none;
+  }
+  #hint { top: 8px; }
+  #stats { top: 28px; }
   </style>
   <link rel="shortcut icon" href="fable.ico" />
 </head>
 <body>
   <div id="pool"></div>
   <canvas id="canvas" style='position: relative; margin: 0,0,0,0; overflow: hidden;'></canvas>
+  <div id="hint">Click anywhere to stop/start animation. Try ?mode=canvas or ?res=2</div>
+  <div id="stats"></div>
   <script src="bundle.js"></script>
 </body>
 </html>

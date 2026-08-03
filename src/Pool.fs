@@ -6,29 +6,62 @@ open Fable.Core
 open Browser
 open Browser.Types
 
-open MyArray2D
-
 //TODO:
 // apply caustics and projection together
 // add specular highlights
-// reimplement in Three.js shader (!)
 // implement in shadertoy.com
 
 let tau = 2.0 * Math.PI
 let frequencies = 9
-let coeffs = MyArray2D(frequencies*2+1, frequencies*2+1)
-let phase = MyArray2D(frequencies*2+1, frequencies*2+1)
+/// side length of the (i,j) frequency grid
+let freqSide = frequencies*2+1
+let waveCount = freqSide*freqSide
+/// index into the wave tables for frequency pair (i,j)
+let inline waveIndex i j = (i+frequencies)*freqSide + (j+frequencies)
+/// Flat arrays rather than a 2D wrapper: the tuple-indexed accessor allocated a
+/// tuple on every read, which in the inner loop was hundreds of allocations per pixel.
+let waveAmp : float[] = Array.zeroCreate waveCount
+let wavePhase : float[] = Array.zeroCreate waveCount
+let waveSpeed = 0.002
+let waveScaling = 0.1
+/// alpha of a refracted patch is min (causticBrightness/area) 1.0
+let causticBrightness = 0.6
+/// how many standard deviations of refraction offset the grid margin must cover
+let marginSigma = 4.0
+
 let rnd = System.Random(42)  // seeds not supported (ignored) by Fable or js
 for i in -frequencies..frequencies do
     for j in -frequencies..frequencies do
         if i<>0 || j<>0 then
-            coeffs.[(i+frequencies, j+frequencies)] <- (rnd.NextDouble() - 0.5) /  (float ((i*i + j*j)))
-            phase.[(i+frequencies, j+frequencies)] <- rnd.NextDouble() * tau
+            waveAmp.[waveIndex i j] <- (rnd.NextDouble() - 0.5) /  (float ((i*i + j*j)))
+            wavePhase.[waveIndex i j] <- rnd.NextDouble() * tau
+
+/// Grid margin needed so that refracted quads from off screen still reach the
+/// screen edges, in world units. The offset is a sum of many cosines with
+/// independent phases, so it is near Gaussian and marginSigma sigma covers it.
+/// This used to be a fixed 5 cells, which is only about the right size at
+/// res=30 and leaves uncovered wedges at the edges at finer resolutions.
+let marginWorld =
+    let mutable vx = 0.
+    let mutable vy = 0.
+    for i in -frequencies..frequencies do
+        for j in -frequencies..frequencies do
+            let a = waveAmp.[waveIndex i j]
+            let ai = a * float i
+            let aj = a * float j
+            vx <- vx + ai*ai/2.
+            vy <- vy + aj*aj/2.
+    marginSigma * waveScaling * sqrt (max vx vy)
+
+/// the margin above expressed in grid cells of size ds
+let marginCells ds = max 5 (int (ceil (marginWorld / ds)))
 
 /// approximate cos with two parabolas
 /// from https://gist.github.com/geraldyeo/988116 then simplified
-/// note: x is radians/PI
-let fastCos x = 
+/// note: x is radians/PI, i.e. fastCos x ~= cos (PI*x)
+/// Kept for reference/tests; the renderers now use the real cosine, which the
+/// separable form below makes affordable (and which is ~5% more accurate).
+let fastCos x =
     let mutable x = x + 1.5
     let xx = 2. * floor (x / 2.)
     x <- x - xx - 1.
@@ -38,51 +71,172 @@ let fastCos x =
     else
         4. * (1.-x) * x
 
-/// Updates derivs 1d array with (dx,dy) pairs for all x coordinates at a given y coordinate
-/// The derivatives represent the amount of refraction horizontally, 
-/// i.e. the cos of angle of wave surface normal from vertical at each point in x and y direction.
-let CalcDerivs (derivs:(float*float) array) ds y margin time =
-    let speed = 0.002
-    let scaling = 0.1
-    let sgn x = if x<0 then -1. else 1.
-    for col in 0..derivs.Length-1 do
-        let x = float (col - margin) * ds
-        let mutable dx, dy = 0., 0.
-        for i in -frequencies..frequencies do
-            let iSign = sgn i
-            for j in -frequencies..frequencies do
-                let jSign = sgn j
-                let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
-                let costheta = fastCos (((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
-                dx <- dx + amp * (float i) * costheta
-                dy <- dy + amp * (float j) * costheta
-        derivs.[col] <- (dx*scaling, dy*scaling)
+// ---------------------------------------------------------------------------
+// Separable wave evaluation.
+//
+// The height field is  sum over i,j of  amp * cos(PI * theta)  with
+//     theta = (x + sgn i * speed * t) * i + (y + sgn j * speed * t) * j + phase
+// and since sgn(i)*i = |i| this is
+//     theta = i*x  +  (j*y + phase + (|i|+|j|)*speed*t)
+//           = i*x  +  psi(i,j,y,t)
+// The second term does not depend on x, so
+//     cos(PI*theta) = cos(PI*i*x)*cos(PI*psi) - sin(PI*i*x)*sin(PI*psi)
+// which lets the whole j-sum be hoisted out of the column loop (done once per
+// row) and the cos/sin of PI*i*x be tabulated once per grid rather than per row.
+//
+// Cost per row drops from  columns * (2f+1)^2  transcendentals to
+// (2f+1)^2 for the row plus  columns * f  multiply-adds: ~45x fewer operations
+// at f=9 (measured in bench/derivs-bench.js).
+// ---------------------------------------------------------------------------
 
-let colours1 = [|for a in 0..100 do sprintf "rgba(155,255,255,%f)" (float a/80.)|]
+/// cos and sin of (PI * i * x) for i = 1..frequencies at every column of the
+/// grid, where x = (col-margin)*ds. Depends only on the grid geometry, so it is
+/// rebuilt when the canvas is resized rather than every frame.
+type ColTable(cols: int, ds: float, margin: int) =
+    let cosTab : float[] = Array.zeroCreate (cols*frequencies)
+    let sinTab : float[] = Array.zeroCreate (cols*frequencies)
+    do
+        for col in 0..cols-1 do
+            let a = Math.PI * float (col-margin) * ds
+            let c1 = cos a
+            let s1 = sin a
+            // angle-multiple recurrence: (c,s) for i+1 from (c,s) for i
+            let mutable c = c1
+            let mutable s = s1
+            for i in 0..frequencies-1 do
+                cosTab.[col*frequencies+i] <- c
+                sinTab.[col*frequencies+i] <- s
+                let nc = c*c1 - s*s1
+                s <- s*c1 + c*s1
+                c <- nc
+    member this.Cols = cols
+    member this.Ds = ds
+    member this.Margin = margin
+    member this.Cos = cosTab
+    member this.Sin = sinTab
+
+let mutable cachedTable : ColTable = ColTable(1, 1., 0)
+
+/// Returns a column table for this grid, reusing the cached one when unchanged.
+let colTable cols ds margin =
+    if cachedTable.Cols <> cols || cachedTable.Ds <> ds || cachedTable.Margin <> margin then
+        cachedTable <- ColTable(cols, ds, margin)
+    cachedTable
+
+// Row coefficients: the j-sums, already folded over +/-i using
+// cos(-a)=cos a and sin(-a)=-sin a. Indexed 1..frequencies.
+let private rowA : float[] = Array.zeroCreate (frequencies+1)
+let private rowB : float[] = Array.zeroCreate (frequencies+1)
+let private rowC : float[] = Array.zeroCreate (frequencies+1)
+let private rowD : float[] = Array.zeroCreate (frequencies+1)
+/// the i=0 term, which contributes nothing to dx and a constant to dy
+let mutable rowC0 = 0.0
+
+let private calcRowCoeffs y time =
+    let st = waveSpeed * time
+    let mutable c0 = 0.0
+    for j in -frequencies..frequencies do
+        let k = waveIndex 0 j
+        let psi = Math.PI * (float j * y + float (abs j) * st + wavePhase.[k])
+        c0 <- c0 + waveAmp.[k] * float j * cos psi
+    rowC0 <- c0
+    for i in 1..frequencies do
+        let mutable ap = 0.
+        let mutable bp = 0.
+        let mutable cp = 0.
+        let mutable dp = 0.
+        let mutable am = 0.
+        let mutable bm = 0.
+        let mutable cm = 0.
+        let mutable dm = 0.
+        for j in -frequencies..frequencies do
+            let basePhase = float j * y + float (i + abs j) * st
+            let kp = waveIndex i j
+            let ampP = waveAmp.[kp]
+            let psiP = Math.PI * (basePhase + wavePhase.[kp])
+            let cP = cos psiP
+            let sP = sin psiP
+            ap <- ap + ampP * cP
+            bp <- bp + ampP * sP
+            cp <- cp + ampP * float j * cP
+            dp <- dp + ampP * float j * sP
+            let km = waveIndex (-i) j
+            let ampM = waveAmp.[km]
+            let psiM = Math.PI * (basePhase + wavePhase.[km])
+            let cM = cos psiM
+            let sM = sin psiM
+            am <- am + ampM * cM
+            bm <- bm + ampM * sM
+            cm <- cm + ampM * float j * cM
+            dm <- dm + ampM * float j * sM
+        rowA.[i] <- float i * (ap - am)
+        rowB.[i] <- float i * (bp + bm)
+        rowC.[i] <- cp + cm
+        rowD.[i] <- dp - dm
+
+/// Fills dxs/dys with the (dx,dy) refraction offsets for every column at row height y.
+/// The derivatives represent the amount of refraction horizontally,
+/// i.e. the cos of angle of wave surface normal from vertical at each point in x and y direction.
+let CalcDerivsRow (dxs: float[]) (dys: float[]) (tab: ColTable) y time =
+    calcRowCoeffs y time
+    let cosTab = tab.Cos
+    let sinTab = tab.Sin
+    for col in 0..dxs.Length-1 do
+        let o = col*frequencies
+        let mutable dx = 0.
+        let mutable dy = rowC0
+        for i in 1..frequencies do
+            let c = cosTab.[o+i-1]
+            let s = sinTab.[o+i-1]
+            dx <- dx + c*rowA.[i] - s*rowB.[i]
+            dy <- dy + c*rowC.[i] - s*rowD.[i]
+        dxs.[col] <- dx * waveScaling
+        dys.[col] <- dy * waveScaling
+
+let colourLevels = 101
+let colours1 = [|for a in 0..colourLevels-1 do sprintf "rgba(155,255,255,%f)" (float a/80.)|]
 // let colours2 = [|for a in 0..100 do sprintf "rgba(110,90,40,%f)" (Math.Pow(float a, 1.5)/3000.)|]
 let cross x1 y1 x2 y2 = abs (x1*y2-x2*y1)
 
+// Frame scratch buffers, grown on demand and reused across frames.
+// Note: grouping the quads into one path per colour bucket, so the frame is
+// 101 fill() calls instead of one per quad, was tried and is much slower - see
+// bench/browser-bench.js. Skia pays more for resolving a path with thousands of
+// subpaths than for the same number of small independent fills.
+let mutable derivs1x : float[] = [||]
+let mutable derivs1y : float[] = [||]
+let mutable derivs2x : float[] = [||]
+let mutable derivs2y : float[] = [||]
+
 /// For each grid square representing an incoming patch of light, refract the four corner coordinates onto
-/// the bottom surface of the pool and draw that quadrilateral with an alpha inversely proportional to area 
+/// the bottom surface of the pool and draw that quadrilateral with an alpha inversely proportional to area
 /// (representing dispertion of the energy).
-let drawCaustics (ctx : CanvasRenderingContext2D) time res = 
+let drawCaustics (ctx : CanvasRenderingContext2D) time res =
     let debug = false
-    let mutable minmaxarea = (1.,0.) 
+    let mutable minmaxarea = (1.,0.)
     let w = int (ctx.canvas.width / res)
     let h = int (ctx.canvas.height / res)
     let scale = float (min w h)
     let ds = res / (min ctx.canvas.width ctx.canvas.height)
-    let ds2 = ds/2.0
-    let margin = 5
-    // store the derivatives at top and bottom y coordinates of each row
-    let mutable derivs1 = Array.create (w+margin*2) (0.,0.)
-    let mutable derivs2 = Array.create (w+margin*2) (0.,0.)
+    let margin = marginCells ds
+    let cols = w + margin*2
+    if derivs1x.Length <> cols then
+        derivs1x <- Array.zeroCreate cols
+        derivs1y <- Array.zeroCreate cols
+        derivs2x <- Array.zeroCreate cols
+        derivs2y <- Array.zeroCreate cols
+    let tab = colTable cols ds margin
     if debug then
         printfn "canvas %f, %f, w,h=%d, %d, ds=%f" ctx.canvas.width ctx.canvas.height w h ds
-    CalcDerivs derivs1 ds (float -margin * ds) margin time
+    // store the derivatives at top and bottom y coordinates of each row
+    let mutable d1x = derivs1x
+    let mutable d1y = derivs1y
+    let mutable d2x = derivs2x
+    let mutable d2y = derivs2y
+    CalcDerivsRow d1x d1y tab (float -margin * ds) time
     for row in -margin..h+margin-2 do
         let py = float row * ds
-        CalcDerivs derivs2 ds (py+ds) margin time
+        CalcDerivsRow d2x d2y tab (py+ds) time
         for col in -margin..w+margin-2 do
             let px = float col * ds
             //js likes it spelled out real simple for best performance
@@ -92,51 +246,42 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time res =
             let py1 = py
             let px2 = px+ds
             let py2 = py+ds
-            let d11x,d11y = derivs1.[colm1]
-            let d12x,d12y = derivs1.[colm2]
-            let d21x,d21y = derivs2.[colm1]
-            let d22x,d22y = derivs2.[colm2]
-            let xtl = px1 + d11x
-            let ytl = py1 + d11y
-            let xtr = px2 + d12x
-            let ytr = py1 + d12y
-            let xbl = px1 + d21x
-            let ybl = py2 + d21y
-            let xbr = px2 + d22x
-            let ybr = py2 + d22y
+            let xtl = px1 + d1x.[colm1]
+            let ytl = py1 + d1y.[colm1]
+            let xtr = px2 + d1x.[colm2]
+            let ytr = py1 + d1y.[colm2]
+            let xbl = px1 + d2x.[colm1]
+            let ybl = py2 + d2y.[colm1]
+            let xbr = px2 + d2x.[colm2]
+            let ybr = py2 + d2y.[colm2]
             if debug then
                 printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
-            // printfn "%f %f" d11x d11y
             let area = (cross (xtr-xtl) (ytr-ytl) (xbl-xtl) (ybl-ytl) + cross (xtr-xbr) (ytr-ybr) (xbl-xbr) (ybl-ybr) ) / 2. * scale * scale
-            let alpha = min (0.6/area) 1.0
-            // let colour = sprintf "rgba(155,255,255,%f)" alpha
-            let colour = colours1.[int(alpha*100.)]
-            // let colour = sprintf "#4e727c%x" (int (alpha*255.))
-            ctx.beginPath()
-            ctx.moveTo(xtl, ytl)
-            ctx.lineTo(xtr, ytr)
-            ctx.lineTo(xbr, ybr)
-            ctx.lineTo(xbl, ybl)
-            ctx.closePath()
-            ctx.fillStyle <- U3.Case1 colour
-            ctx.fill()
-            if debug then
-                printfn "%A" colour
-                minmaxarea <- (min alpha (fst minmaxarea), max alpha (snd minmaxarea))
-            // Add specular highlights - but looks too blocky
-            let specular = false
-            if specular && 0.1 < d11x && d11x < 0.15 && 0. < d11y && d11y < 0.05 then
+            let alpha = min (causticBrightness/area) 1.0
+            let bucket =
+                let b = int (alpha * float (colourLevels-1))
+                if b < 0 then 0 elif b > colourLevels-1 then colourLevels-1 else b
+            // bucket 0 is fully transparent, so drawing it is a no-op
+            if bucket > 0 then
                 ctx.beginPath()
-                ctx.moveTo(px1, py1)
-                ctx.lineTo(px1, py2)
-                ctx.lineTo(px2, py2)
-                ctx.lineTo(px2, py1)
+                ctx.moveTo(xtl, ytl)
+                ctx.lineTo(xtr, ytr)
+                ctx.lineTo(xbr, ybr)
+                ctx.lineTo(xbl, ybl)
                 ctx.closePath()
-                ctx.fillStyle <- U3.Case1 "white"
+                ctx.fillStyle <- U3.Case1 colours1.[bucket]
                 ctx.fill()
+            if debug then
+                printfn "%A" colours1.[bucket]
+                minmaxarea <- (min alpha (fst minmaxarea), max alpha (snd minmaxarea))
 
-        for col in -margin..w+margin do
-            derivs1.[col+margin] <- derivs2.[col+margin]
+        // ping-pong the two derivative rows rather than copying them
+        let tx = d1x
+        let ty = d1y
+        d1x <- d2x
+        d1y <- d2y
+        d2x <- tx
+        d2y <- ty
 
     if debug then
         printfn "%A" minmaxarea
@@ -193,9 +338,9 @@ with
                 if colour = "none" then
                     sprintf "style='fill:none'/>"
                     // sprintf "style='fill:none;stroke:#000000;stroke-width:0.01'/>"
-                elif colour <> "000000" then 
+                elif colour <> "000000" then
                     sprintf "style='fill:#%s'/>" colour
-                else 
+                else
                     "/>"
                 //sprintf "style='fill:none;stroke:#000000;stroke-width:%f'/>" 0.001
             ]
@@ -206,32 +351,37 @@ with
 
 /// Render causics as SVG
 /// Map the distorted pool bottom back to screen coords in tiles
-let poolHtml time = 
+let poolHtml time =
     let mult = 2
     let w = 16 * mult
     let h = 9 * mult
     let scale = float (min w h)
     let ds = 1.0 / scale
     let grid = scale
-    let mutable derivs1 = Array.create (w+1) (0., 0.)
-    let mutable derivs2 = Array.create (w+1) (0., 0.)
-    CalcDerivs derivs1 ds 0. 0 time
-    let svg = 
+    let tab = colTable (w+1) ds 0
+    // these are copied rather than ping-ponged: the row loop below is a sequence
+    // expression, which cannot capture a mutable binding
+    let d1x : float[] = Array.zeroCreate (w+1)
+    let d1y : float[] = Array.zeroCreate (w+1)
+    let d2x : float[] = Array.zeroCreate (w+1)
+    let d2y : float[] = Array.zeroCreate (w+1)
+    CalcDerivsRow d1x d1y tab 0. time
+    let svg =
         [for row in 0..h-1 do
             let rr = float row * ds
-            CalcDerivs derivs2 ds (rr+ds) 0 time
+            CalcDerivsRow d2x d2y tab (rr+ds) time
             for col in 0..w-1 do
                 let debug = row=0 && col=0
                 let debug = false
                 let cc = float col * ds
-                let xtl = cc    + fst derivs1.[col]
-                let ytl = rr    + snd derivs1.[col]
-                let xtr = cc+ds + fst derivs1.[col+1]
-                let ytr = rr    + snd derivs1.[col+1]
-                let xbl = cc    + fst derivs2.[col]
-                let ybl = rr+ds + snd derivs2.[col]
-                let xbr = cc+ds + fst derivs2.[col+1]
-                let ybr = rr+ds + snd derivs2.[col+1]
+                let xtl = cc    + d1x.[col]
+                let ytl = rr    + d1y.[col]
+                let xtr = cc+ds + d1x.[col+1]
+                let ytr = rr    + d1y.[col+1]
+                let xbl = cc    + d2x.[col]
+                let ybl = rr+ds + d2y.[col]
+                let xbr = cc+ds + d2x.[col+1]
+                let ybr = rr+ds + d2y.[col+1]
                 if debug then
                     printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
                 let poly = {pts=[|{X=xtl*scale;Y=ytl*scale}; {X=xtr*scale;Y=ytr*scale};
@@ -245,7 +395,7 @@ let poolHtml time =
                     /// formula tested in https://docs.google.com/spreadsheets/d/1dnMlhaIX71SZLfUchIz-cWAUhKnvHQ4G8Uu2TT46g7w/edit#gid=570833227
                     let a,b,c,d,e,f = xtr-xtl,ytr-ytl, xbl-xtl,ybl-ytl, xbr-xtl,ybr-ytl
                     let u,v = e-c-a, f-d-b
-                    let screen_coords xx yy = 
+                    let screen_coords xx yy =
                         let x,y = xx-xtl,yy-ytl
                         let A = b*u-a*v
                         let B = b*c-a*d+v*x-u*y
@@ -278,27 +428,9 @@ let poolHtml time =
                             let projTile = {pts=[|for p in tile.pts do screen_coords (p.X/grid) (p.Y/grid)|]}
                             let s0 = {X=float col; Y=float row}
                             yield! (projTile+s0).ToSvg "4444ff"
-                            // yield! (projTile+s0).ToSvg (sprintf "%x%x%x" (255/i) (255/j) (255/row))
-                            //old:
-                            // let poly = {pts=[|
-                            //     (screen_coords (float i/grid)      (float j/grid))
-                            //     (screen_coords (float (i+1)/grid)  (float j/grid))
-                            //     (screen_coords (float (i+1)/grid)  (float (j+1)/grid))
-                            //     (screen_coords (float i/grid)      (float (j+1)/grid))
-                            // |]}
-                            // let check p = not (Double.IsNaN p.X) && not (Double.IsNaN p.Y)
-                            // let s0 = {X=float col; Y=float row}
-                            // if Array.fold (fun s p -> s&&check p) true poly.pts then
-                            //     let poly = poly.CropUnitSquare
-                            //     if debug then
-                            //         printfn "poly= %A" ((poly+s0).ToSvg "000000")
-                            //     //sprintf "<rect x="50" y="20" width="150" height="150"
-                            //     //style="fill:blue;stroke:pink;stroke-width:5;fill-opacity:0.1;stroke-opacity:0.9" />                ]
-                            //     yield! (poly+s0).ToSvg "4444ff"
-                            // // else
-                            // //     yield! (Poly.NearUnitSquare+s0).ToSvg "ff0000"
             for col in 0..w do
-                derivs1.[col] <- derivs2.[col]
+                d1x.[col] <- d2x.[col]
+                d1y.[col] <- d2y.[col]
         ]
 
     [
@@ -307,7 +439,7 @@ let poolHtml time =
         // sprintf "   viewBox='-0.5 -0.5 %d.5 %d.5' style='position: relative; top: 50%%; left: 50%%; transform: translate(-50%%, -50%%);'>" (w+1) (h+1)
         "<g id='layer1'>"
     ] @
-    svg @ 
+    svg @
     [
         "</g>"
         "</svg>"

@@ -1,0 +1,347 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Pool renderer harness</title>
+<style>body{margin:0;overflow:hidden;background:#146897}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// A JS mirror of src/Pool.fs and src/Gpu.fs, used to measure and to check that
+// the WebGL shaders in src/Gpu.fs actually compile and draw. The shader sources
+// are extracted from the F# file by bench/browser-bench.js and passed in, so
+// this page cannot drift from the shipped GLSL.
+const FREQ = 9, SIDE = 2 * FREQ + 1, WAVES = SIDE * SIDE;
+const TAU = 2 * Math.PI, SPEED = 0.002, SCALING = 0.1, BRIGHT = 0.6, MARGIN_SIGMA = 4;
+const LEVELS = 101;
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const waveAmp = new Float64Array(WAVES);
+const wavePhase = new Float64Array(WAVES);
+const wi = (i, j) => (i + FREQ) * SIDE + (j + FREQ);
+{
+  const rnd = mulberry32(42);
+  for (let i = -FREQ; i <= FREQ; i++)
+    for (let j = -FREQ; j <= FREQ; j++)
+      if (i !== 0 || j !== 0) {
+        waveAmp[wi(i, j)] = (rnd() - 0.5) / (i * i + j * j);
+        wavePhase[wi(i, j)] = rnd() * TAU;
+      }
+}
+
+// grid margin in world units: marginSigma sigma of the refraction offset
+let marginWorld;
+{
+  let vx = 0, vy = 0;
+  for (let i = -FREQ; i <= FREQ; i++)
+    for (let j = -FREQ; j <= FREQ; j++) {
+      const a = waveAmp[wi(i, j)];
+      vx += (a * i) ** 2 / 2; vy += (a * j) ** 2 / 2;
+    }
+  marginWorld = MARGIN_SIGMA * SCALING * Math.sqrt(Math.max(vx, vy));
+}
+const marginCells = (ds) => Math.max(5, Math.ceil(marginWorld / ds));
+
+const colours = [];
+for (let a = 0; a < LEVELS; a++) colours.push(`rgba(155,255,255,${(a / 80).toFixed(6)})`);
+
+// ------------------------------------------------- derivatives, both versions
+
+function fastCos(x) {
+  x = x + 1.5;
+  x = x - 2 * Math.floor(x / 2) - 1;
+  return x < 0 ? 4 * (1 + x) * x : 4 * (1 - x) * x;
+}
+
+// the shipped-before version: full (2f+1)^2 loop per column
+function origDerivs(dxs, dys, ds, y, margin, time) {
+  const sgn = (x) => (x < 0 ? -1 : 1);
+  for (let col = 0; col < dxs.length; col++) {
+    const x = (col - margin) * ds;
+    let dx = 0, dy = 0;
+    for (let i = -FREQ; i <= FREQ; i++)
+      for (let j = -FREQ; j <= FREQ; j++) {
+        const amp = waveAmp[wi(i, j)];
+        const ct = fastCos((x + sgn(i) * SPEED * time) * i + (y + sgn(j) * SPEED * time) * j + wavePhase[wi(i, j)]);
+        dx += amp * i * ct;
+        dy += amp * j * ct;
+      }
+    dxs[col] = dx * SCALING;
+    dys[col] = dy * SCALING;
+  }
+}
+
+let tab = null;
+let colTableGrid = null;
+function colTable(cols, ds, margin) {
+  if (tab && tab.cols === cols && tab.ds === ds && tab.margin === margin) return tab;
+  const cosT = new Float64Array(cols * FREQ), sinT = new Float64Array(cols * FREQ);
+  for (let col = 0; col < cols; col++) {
+    const a = Math.PI * (col - margin) * ds;
+    const c1 = Math.cos(a), s1 = Math.sin(a);
+    let c = c1, s = s1;
+    for (let i = 0; i < FREQ; i++) {
+      cosT[col * FREQ + i] = c; sinT[col * FREQ + i] = s;
+      const nc = c * c1 - s * s1; s = s * c1 + c * s1; c = nc;
+    }
+  }
+  tab = { cols, ds, margin, cosT, sinT };
+  return tab;
+}
+
+const rowA = new Float64Array(FREQ + 1), rowB = new Float64Array(FREQ + 1);
+const rowC = new Float64Array(FREQ + 1), rowD = new Float64Array(FREQ + 1);
+let rowC0 = 0;
+
+function calcRowCoeffs(y, time) {
+  const st = SPEED * time;
+  let c0 = 0;
+  for (let j = -FREQ; j <= FREQ; j++) {
+    const k = wi(0, j);
+    c0 += waveAmp[k] * j * Math.cos(Math.PI * (j * y + Math.abs(j) * st + wavePhase[k]));
+  }
+  rowC0 = c0;
+  for (let i = 1; i <= FREQ; i++) {
+    let ap = 0, bp = 0, cp = 0, dp = 0, am = 0, bm = 0, cm = 0, dm = 0;
+    for (let j = -FREQ; j <= FREQ; j++) {
+      const base = j * y + (i + Math.abs(j)) * st;
+      const kp = wi(i, j), ampP = waveAmp[kp];
+      const pp = Math.PI * (base + wavePhase[kp]), cP = Math.cos(pp), sP = Math.sin(pp);
+      ap += ampP * cP; bp += ampP * sP; cp += ampP * j * cP; dp += ampP * j * sP;
+      const km = wi(-i, j), ampM = waveAmp[km];
+      const pm = Math.PI * (base + wavePhase[km]), cM = Math.cos(pm), sM = Math.sin(pm);
+      am += ampM * cM; bm += ampM * sM; cm += ampM * j * cM; dm += ampM * j * sM;
+    }
+    rowA[i] = i * (ap - am); rowB[i] = i * (bp + bm);
+    rowC[i] = cp + cm; rowD[i] = dp - dm;
+  }
+}
+
+function calcDerivsRow(dxs, dys, t, y, time) {
+  calcRowCoeffs(y, time);
+  for (let col = 0; col < dxs.length; col++) {
+    const o = col * FREQ;
+    let dx = 0, dy = rowC0;
+    for (let i = 1; i <= FREQ; i++) {
+      const c = t.cosT[o + i - 1], s = t.sinT[o + i - 1];
+      dx += c * rowA[i] - s * rowB[i];
+      dy += c * rowC[i] - s * rowD[i];
+    }
+    dxs[col] = dx * SCALING;
+    dys[col] = dy * SCALING;
+  }
+}
+
+// ----------------------------------------------------------- 2D canvas draw
+
+const bucketCount = new Int32Array(LEVELS), bucketAt = new Int32Array(LEVELS);
+let d1x, d1y, d2x, d2y, quadBucket, quadCoords, sortedCoords;
+
+// opts: {separable, batched}
+function draw2d(ctx, time, res, opts) {
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const w = Math.trunc(cw / res), h = Math.trunc(ch / res);
+  const scale = Math.min(w, h);
+  const ds = res / Math.min(cw, ch);
+  const MARGIN = opts.legacyMargin ? 5 : marginCells(ds);
+  const cols = w + MARGIN * 2, rows = h + MARGIN * 2;
+  const maxQuads = (cols - 1) * (rows - 1);
+  if (!d1x || d1x.length !== cols) {
+    d1x = new Float64Array(cols); d1y = new Float64Array(cols);
+    d2x = new Float64Array(cols); d2y = new Float64Array(cols);
+  }
+  if (!quadCoords || quadBucket.length < maxQuads) {
+    quadBucket = new Int32Array(maxQuads);
+    quadCoords = new Float64Array(maxQuads * 8);
+    sortedCoords = new Float64Array(maxQuads * 8);
+  }
+  const t = colTable(cols, ds, MARGIN);
+  colTableGrid = { cols, ds, margin: MARGIN };
+  let a1x = d1x, a1y = d1y, a2x = d2x, a2y = d2y;
+  const derivs = (dx, dy, y) =>
+    opts.separable ? calcDerivsRow(dx, dy, t, y, time) : origDerivs(dx, dy, ds, y, MARGIN, time);
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(ch, ch);
+  ctx.fillStyle = '#146897';
+  ctx.fillRect(0, 0, cw, ch);
+
+  derivs(a1x, a1y, -MARGIN * ds);
+  bucketCount.fill(0);
+  let nQuads = 0;
+  for (let row = -MARGIN; row <= h + MARGIN - 2; row++) {
+    const py = row * ds;
+    derivs(a2x, a2y, py + ds);
+    for (let col = -MARGIN; col <= w + MARGIN - 2; col++) {
+      const px = col * ds, c1 = col + MARGIN, c2 = c1 + 1;
+      const px2 = px + ds, py2 = py + ds;
+      const xtl = px + a1x[c1], ytl = py + a1y[c1];
+      const xtr = px2 + a1x[c2], ytr = py + a1y[c2];
+      const xbl = px + a2x[c1], ybl = py2 + a2y[c1];
+      const xbr = px2 + a2x[c2], ybr = py2 + a2y[c2];
+      const cross = (x1, y1, x2, y2) => Math.abs(x1 * y2 - x2 * y1);
+      const area = (cross(xtr - xtl, ytr - ytl, xbl - xtl, ybl - ytl)
+        + cross(xtr - xbr, ytr - ybr, xbl - xbr, ybl - ybr)) / 2 * scale * scale;
+      const alpha = Math.min(BRIGHT / area, 1);
+      let b = alpha * (LEVELS - 1) | 0;
+      if (!(b > 0)) continue;
+      if (b > LEVELS - 1) b = LEVELS - 1;
+      if (opts.noFill) {
+        nQuads++;
+      } else if (opts.batched) {
+        const o = nQuads * 8;
+        quadCoords[o] = xtl; quadCoords[o + 1] = ytl;
+        quadCoords[o + 2] = xtr; quadCoords[o + 3] = ytr;
+        quadCoords[o + 4] = xbr; quadCoords[o + 5] = ybr;
+        quadCoords[o + 6] = xbl; quadCoords[o + 7] = ybl;
+        quadBucket[nQuads++] = b;
+        bucketCount[b]++;
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(xtl, ytl); ctx.lineTo(xtr, ytr); ctx.lineTo(xbr, ybr); ctx.lineTo(xbl, ybl);
+        ctx.closePath();
+        ctx.fillStyle = colours[b];
+        ctx.fill();
+      }
+    }
+    let tx = a1x, ty = a1y; a1x = a2x; a1y = a2y; a2x = tx; a2y = ty;
+  }
+  if (opts.batched && !opts.noFill) {
+    let at = 0;
+    for (let b = 0; b < LEVELS; b++) { bucketAt[b] = at; at += bucketCount[b] * 8; }
+    for (let q = 0; q < nQuads; q++) {
+      const b = quadBucket[q], src = q * 8, dst = bucketAt[b];
+      bucketAt[b] = dst + 8;
+      for (let k = 0; k < 8; k++) sortedCoords[dst + k] = quadCoords[src + k];
+    }
+    let start = 0;
+    for (let b = 0; b < LEVELS; b++) {
+      const n = bucketCount[b];
+      if (n === 0) continue;
+      ctx.beginPath();
+      let o = start;
+      for (let q = 0; q < n; q++) {
+        ctx.moveTo(sortedCoords[o], sortedCoords[o + 1]);
+        ctx.lineTo(sortedCoords[o + 2], sortedCoords[o + 3]);
+        ctx.lineTo(sortedCoords[o + 4], sortedCoords[o + 5]);
+        ctx.lineTo(sortedCoords[o + 6], sortedCoords[o + 7]);
+        ctx.closePath();
+        o += 8;
+      }
+      ctx.fillStyle = colours[b];
+      ctx.fill();
+      start += n * 8;
+    }
+  }
+  return nQuads;
+}
+
+// ------------------------------------------------------------ WebGL2 draw
+
+function makeGl(canvas, vsSrc, fsSrc) {
+  const gl = canvas.getContext('webgl2');
+  if (!gl) throw new Error('no webgl2 context');
+  const compile = (kind, src) => {
+    const sh = gl.createShader(kind);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
+      throw new Error('shader compile failed: ' + gl.getShaderInfoLog(sh));
+    return sh;
+  };
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+    throw new Error('link failed: ' + gl.getProgramInfoLog(program));
+  const u = (n) => gl.getUniformLocation(program, n);
+
+  const data = new Float32Array(WAVES * 4);
+  let n = 0;
+  for (let i = -FREQ; i <= FREQ; i++)
+    for (let j = -FREQ; j <= FREQ; j++) {
+      const amp = waveAmp[wi(i, j)];
+      if (amp !== 0) {
+        data[n * 4] = i; data[n * 4 + 1] = j; data[n * 4 + 2] = amp; data[n * 4 + 3] = wavePhase[wi(i, j)];
+        n++;
+      }
+    }
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, n, 1, 0, gl.RGBA, gl.FLOAT, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const vao = gl.createVertexArray();
+  const ib = gl.createBuffer();
+  let gridCols = 0, gridRows = 0, indexCount = 0;
+  const build = (cols, rows) => {
+    const qx = cols - 1, qy = rows - 1, count = qx * qy * 6;
+    const idx = new Uint32Array(count);
+    let k = 0;
+    for (let y = 0; y < qy; y++)
+      for (let x = 0; x < qx; x++) {
+        const v00 = y * cols + x, v10 = v00 + 1, v01 = v00 + cols, v11 = v01 + 1;
+        idx[k] = v00; idx[k + 1] = v10; idx[k + 2] = v11;
+        idx[k + 3] = v00; idx[k + 4] = v11; idx[k + 5] = v01;
+        k += 6;
+      }
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+    gridCols = cols; gridRows = rows; indexCount = count;
+  };
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  return {
+    waves: n,
+    get verts() { return gridCols * gridRows; },
+    draw(time, res) {
+      const cw = canvas.width, ch = canvas.height;
+      const w = Math.trunc(cw / res), h = Math.trunc(ch / res);
+      const minDim = Math.min(cw, ch), ds = res / minDim;
+      const margin = marginCells(ds);
+      const cols = w + margin * 2, rows = h + margin * 2;
+      if (cols !== gridCols || rows !== gridRows) build(cols, rows);
+      const origin = -margin * ds;
+      gl.viewport(0, 0, cw, ch);
+      gl.clearColor(0x14 / 255, 0x68 / 255, 0x97 / 255, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.bindVertexArray(vao);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(u('uWaves'), 0);
+      gl.uniform1i(u('uNumWaves'), n);
+      const drift = SPEED * time;
+      gl.uniform1f(u('uDrift'), drift - 2 * Math.floor(drift / 2));
+      gl.uniform1f(u('uScaling'), SCALING);
+      gl.uniform1f(u('uBrightness'), BRIGHT);
+      gl.uniform1f(u('uAlphaGain'), 100 / 80);
+      gl.uniform2f(u('uOrigin'), origin, origin);
+      gl.uniform1f(u('uDs'), ds);
+      gl.uniform1i(u('uGridW'), cols);
+      gl.uniform2f(u('uViewScale'), 2 * minDim / cw, -2 * minDim / ch);
+      gl.uniform2f(u('uViewOffset'), -1, 1);
+      gl.uniform3f(u('uColour'), 155 / 255, 1, 1);
+      gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, 0);
+    },
+    // readPixels forces the pipeline to drain, so a draw can actually be timed
+    sync() { const p = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, p); },
+  };
+}
+
+window.harness = { draw2d, makeGl, colTable };
+</script>
+</body>
+</html>
