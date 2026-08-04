@@ -135,7 +135,7 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time res =
                 ctx.fillStyle <- U3.Case1 "white"
                 ctx.fill()
 
-        for col in -margin..w+margin do
+        for col in -margin..w+margin-1 do
             derivs1.[col+margin] <- derivs2.[col+margin]
 
     if debug then
