@@ -1,10 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- The workflow installs .NET 8 and the runner image carries 8/9/10, so a
-         netcoreapp3.1 test assembly cannot start a test host: vstest aborts with
-         "framework_version=3.1.0 ... to install missing framework". -->
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
@@ -18,21 +15,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Pool.fs is compiled here directly rather than referenced, so it needs the
-         Fable packages it opens. These used to arrive transitively through a
-         ProjectReference to App.fsproj; that reference is gone because App.fsproj
-         still targets netcoreapp3.1 and referencing it from net8.0 is an NU1201.
-         App.fsproj is deliberately left alone: it is the project fable-loader
-         cracks for the webpack build, and retargeting it is a separate question. -->
-    <PackageReference Include="Fable.Core" Version="*" />
-    <PackageReference Include="Fable.Browser.Dom" Version="*" />
+    <Compile Include="PoolTest.fs" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../Array.fs" />
-    <Compile Include="../Pool.fs" />
-    <Compile Include="PoolTest.fs" />
-    <Compile Include="Program.fs" />
+    <ProjectReference Include="../App.fsproj" />
   </ItemGroup>
 
 </Project>
