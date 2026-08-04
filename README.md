@@ -13,7 +13,7 @@ Uses [Fable](https://fable.io/) 5 for F# to JS conversion.
 
 ## Build Requirements
 
-* [dotnet SDK](https://www.microsoft.com/net/download/core) 10.0 or higher (Fable 5 runs on the .NET 10 runtime; it still compiles the app's own net8.0 F# projects)
+* [dotnet SDK](https://www.microsoft.com/net/download/core) 10.0 or higher
 * [node.js](https://nodejs.org) with [npm](https://www.npmjs.com/)
 * An F# editor like Visual Studio, Visual Studio Code with [Ionide](http://ionide.io/) or [JetBrains Rider](https://www.jetbrains.com/rider/).
 

@@ -1,10 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- The workflow installs .NET 8 and the runner image carries 8/9/10, so a
-         netcoreapp3.1 test assembly cannot start a test host: vstest aborts with
-         "framework_version=3.1.0 ... to install missing framework". -->
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
