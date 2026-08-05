@@ -275,7 +275,10 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time res =
                 printfn "%A" colours1.[bucket]
                 minmaxarea <- (min alpha (fst minmaxarea), max alpha (snd minmaxarea))
 
-        // ping-pong the two derivative rows rather than copying them
+        // ping-pong the two derivative rows rather than copying them. Master
+        // fixed the same one-past-the-end overrun this replaces by bounding the
+        // copy loop at w+margin-1; the ping-pong makes the copy (and that fix)
+        // unnecessary rather than conflicting with it.
         let tx = d1x
         let ty = d1y
         d1x <- d2x
