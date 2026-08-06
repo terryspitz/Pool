@@ -8,6 +8,54 @@
   body {
     overflow: hidden; /* Hide scrollbars */
     margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  .icon-button {
+    position: fixed;
+    top: 12px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.45);
+    color: white;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 20;
+  }
+  .icon-button:hover {
+    background: rgba(0, 0, 0, 0.65);
+  }
+  #play-toggle { right: 12px; }
+  #fullscreen-toggle { right: 60px; }
+  #settings-toggle { right: 108px; }
+  #settings-panel {
+    position: fixed;
+    top: 60px;
+    right: 12px;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.55);
+    color: white;
+    padding: 14px 18px 18px;
+    border-radius: 8px;
+    min-width: 220px;
+    display: none;
+  }
+  #settings-panel.open {
+    display: block;
+  }
+  #settings-panel label {
+    display: block;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  #settings-panel label:first-child {
+    margin-top: 0;
+  }
+  #settings-panel input[type=range] {
+    width: 100%;
+    margin-top: 4px;
   }
   </style>
   <link rel="shortcut icon" href="fable.ico" />
@@ -15,6 +63,26 @@
 <body>
   <div id="pool"></div>
   <canvas id="canvas" style='position: relative; margin: 0,0,0,0; overflow: hidden;'></canvas>
+
+  <button id="play-toggle" class="icon-button" title="Pause/play (space)">&#10074;&#10074;</button>
+  <button id="fullscreen-toggle" class="icon-button" title="Toggle fullscreen (F11)">&#9974;</button>
+  <button id="settings-toggle" class="icon-button" title="Settings">&#9776;</button>
+
+  <div id="settings-panel">
+    <label>Brightness
+      <input id="brightness-slider" type="range" min="0.1" max="1.0" step="0.01" value="0.45">
+    </label>
+    <label>Wave speed
+      <input id="speed-slider" type="range" min="0" max="0.006" step="0.0002" value="0.002">
+    </label>
+    <label>Wave height
+      <input id="amplitude-slider" type="range" min="0" max="0.25" step="0.005" value="0.1">
+    </label>
+    <label>Detail
+      <input id="quality-slider" type="range" min="0.5" max="2.5" step="0.05" value="1">
+    </label>
+  </div>
+
   <script src="bundle.js"></script>
 </body>
 </html>

@@ -15,6 +15,14 @@ open MyArray2D
 // implement in shadertoy.com
 
 let tau = 2.0 * Math.PI
+
+// User-adjustable settings, wired up to sliders in App.fs
+/// Scales the peak intensity of caustic highlights. Lower values avoid the
+/// bright spots blowing out to solid white.
+let mutable brightness = 0.45
+let mutable waveSpeed = 0.002
+let mutable waveAmplitude = 0.1
+
 let frequencies = 9
 let coeffs = MyArray2D(frequencies*2+1, frequencies*2+1)
 let phase = MyArray2D(frequencies*2+1, frequencies*2+1)
@@ -42,8 +50,6 @@ let fastCos x =
 /// The derivatives represent the amount of refraction horizontally, 
 /// i.e. the cos of angle of wave surface normal from vertical at each point in x and y direction.
 let CalcDerivs (derivs:(float*float) array) ds y margin time =
-    let speed = 0.002
-    let scaling = 0.1
     let sgn x = if x<0 then -1. else 1.
     for col in 0..derivs.Length-1 do
         let x = float (col - margin) * ds
@@ -53,10 +59,10 @@ let CalcDerivs (derivs:(float*float) array) ds y margin time =
             for j in -frequencies..frequencies do
                 let jSign = sgn j
                 let amp, phase = coeffs.[(i+frequencies, j+frequencies)], phase.[(i+frequencies,j+frequencies)]
-                let costheta = fastCos (((x+iSign*speed*time) * float i + (y+jSign*speed*time) * float j) + phase)
+                let costheta = fastCos (((x+iSign*waveSpeed*time) * float i + (y+jSign*waveSpeed*time) * float j) + phase)
                 dx <- dx + amp * (float i) * costheta
                 dy <- dy + amp * (float j) * costheta
-        derivs.[col] <- (dx*scaling, dy*scaling)
+        derivs.[col] <- (dx*waveAmplitude, dy*waveAmplitude)
 
 let colours1 = [|for a in 0..100 do sprintf "rgba(155,255,255,%f)" (float a/80.)|]
 // let colours2 = [|for a in 0..100 do sprintf "rgba(110,90,40,%f)" (Math.Pow(float a, 1.5)/3000.)|]
@@ -108,7 +114,7 @@ let drawCaustics (ctx : CanvasRenderingContext2D) time res =
                 printfn "\n%d %d M %f , %f L %f , %f L %f , %f L %f , %f" row col xtl ytl xtr ytr xbr ybr xbl ybl
             // printfn "%f %f" d11x d11y
             let area = (cross (xtr-xtl) (ytr-ytl) (xbl-xtl) (ybl-ytl) + cross (xtr-xbr) (ytr-ybr) (xbl-xbr) (ybl-ybr) ) / 2. * scale * scale
-            let alpha = min (0.6/area) 1.0
+            let alpha = min (brightness/area) 1.0
             // let colour = sprintf "rgba(155,255,255,%f)" alpha
             let colour = colours1.[int(alpha*100.)]
             // let colour = sprintf "#4e727c%x" (int (alpha*255.))
