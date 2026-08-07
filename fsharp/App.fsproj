@@ -4,12 +4,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Pool.fs"/>
-    <Compile Include="Gpu.fs"/>
     <Compile Include="App.fs"/>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Browser.Dom" Version="*"/>
     <PackageReference Include="Fable.Core" Version="*"/>
-    <PackageReference Include="Fable.Browser.Css" Version="*"/>
   </ItemGroup>
 </Project>
