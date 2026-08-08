@@ -23,7 +23,11 @@ export const BRIGHTNESS = 0.45;
 /// final multiplier on the already-clamped alpha, applied after BRIGHTNESS.
 /// Unlike BRIGHTNESS, this scales the whole image uniformly - including the
 /// saturated cores - so it behaves like an actual dimmer/exposure control.
-export let INTENSITY = 1;
+/// Past ~0.5 the saturated cores dominate and further increases mostly widen
+/// the washed-out area rather than adding useful detail, so the default and
+/// the Brightness slider's range both stay well under 1. Keep in sync with
+/// the slider's default in public/index.html.
+export let INTENSITY = 0.3;
 
 export const setSpeed = (v) => { SPEED = v; };
 export const setScaling = (v) => { SCALING = v; };
