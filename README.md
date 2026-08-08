@@ -12,9 +12,9 @@ dispersion of the energy.
 [Try it now.](https://terryspitz.github.io/Pool/public/index.html)
 [![caustic](png/Screenshot.png)](https://terryspitz.github.io/Pool/public/index.html)
 
-[A short visual tutorial](https://terryspitz.github.io/Pool/public/tutorial.html) builds the image up
-step by step, from an undistorted grid to the finished caustics — also linked from the `?` button on
-the live page.
+The `?` button on the live page opens a short tutorial that steps through how the image is built —
+undistorted grid, refraction, quad area as brightness — without ever pausing the animation
+underneath, so the last step is just the tutorial getting out of the way.
 
 ## Running it
 
@@ -40,6 +40,7 @@ per frame and the active renderer are shown in the corner.
     src/waves.js    the wave field and the refraction offsets it produces
     src/canvas.js   2D canvas renderer
     src/gpu.js      WebGL2 renderer
+    src/tutorial.js the in-page "how it's made" walkthrough
     src/app.js      renderer selection, animation loop, stats
     public/         the page
     bench/          accuracy and performance checks

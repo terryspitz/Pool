@@ -2,6 +2,7 @@
 
 import * as canvasRenderer from './canvas.js';
 import * as gpuRenderer from './gpu.js';
+import * as tutorial from './tutorial.js';
 import { setIntensity, setScaling, setSpeed } from './waves.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -55,6 +56,7 @@ function update() {
   const res = (requestedRes ?? defaultRes) / qualityMultiplier;
   if (useGpu) gpu.draw(timeMs, res);
   else canvasRenderer.draw(ctx, timeMs, res);
+  tutorial.renderFrame(timeMs);
   renderMsSinceStats += performance.now() - start;
   framesSinceStats++;
   showStats();
@@ -124,5 +126,6 @@ document.body.onkeydown = (e) => {
   }
 };
 
+tutorial.init();
 resize();
 animate();
