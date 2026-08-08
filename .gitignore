@@ -297,3 +297,11 @@ fable_modules/
 
 .ionide/
 .ionide/symbolCache.db
+
+bench/out/
+
+# F# editor cache (only relevant to fsharp/)
+.ionide/
+
+# Fable output for fsharp/ (dotnet fable App.fsproj --outDir build)
+fsharp/build/

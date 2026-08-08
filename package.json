@@ -1,16 +1,11 @@
 {
   "private": true,
+  "type": "module",
   "scripts": {
-    "start": "dotnet fable watch src --run webpack-dev-server",
-    "build-prod": "dotnet fable src && webpack --mode production",
-    "build-dev": "dotnet fable src && webpack"
+    "bench": "node bench/derivs-bench.mjs",
+    "bench-web": "node bench/render-bench.mjs"
   },
-  "dependencies": {
-    "@babel/core": "^7.8.4",
-    "react": "^16.12.0",
-    "react-dom": "^16.12.0",
-    "webpack": "^5.109.2",
-    "webpack-cli": "^7.2.2",
-    "webpack-dev-server": "^6.0.0"
+  "devDependencies": {
+    "playwright-core": "^1.62.1"
   }
 }

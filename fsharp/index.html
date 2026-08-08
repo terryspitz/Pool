@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head>
+  <title>Pool (F# / SVG)</title>
+  <meta charset="utf-8">
+  <style>
+    body { margin: 0; overflow: hidden; background: #146897; }
+    /* poolHtml emits a full <svg viewBox='0 0 32 18'> with no width or height,
+       so it fills this box and scales to it */
+    #pool svg { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="pool"></div>
+  <script type="module" src="build/App.js"></script>
+</body>
+</html>

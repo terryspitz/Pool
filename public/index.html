@@ -57,12 +57,24 @@
     width: 100%;
     margin-top: 4px;
   }
+  canvas { display: block; }
+  /* overlay rather than canvas text, so it is not redrawn every frame */
+  #stats, #hint {
+    position: fixed;
+    left: 8px;
+    font: 14px Georgia, serif;
+    color: #000;
+    pointer-events: none;
+  }
+  #hint { top: 8px; }
+  #stats { top: 28px; }
   </style>
-  <link rel="shortcut icon" href="fable.ico" />
+  <link rel="shortcut icon" href="favicon.ico" />
 </head>
 <body>
-  <div id="pool"></div>
-  <canvas id="canvas" style='position: relative; margin: 0,0,0,0; overflow: hidden;'></canvas>
+  <canvas id="canvas"></canvas>
+  <div id="hint">Click the pool, or press space, to pause/play. Try ?mode=canvas or ?res=2</div>
+  <div id="stats"></div>
 
   <button id="play-toggle" class="icon-button" title="Pause/play (space)">&#10074;&#10074;</button>
   <button id="fullscreen-toggle" class="icon-button" title="Toggle fullscreen (F11)">&#9974;</button>
@@ -83,6 +95,6 @@
     </label>
   </div>
 
-  <script src="bundle.js"></script>
+  <script type="module" src="../src/app.js"></script>
 </body>
 </html>

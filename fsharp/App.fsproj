@@ -3,13 +3,11 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Array.fs"/>
     <Compile Include="Pool.fs"/>
     <Compile Include="App.fs"/>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Browser.Dom" Version="*"/>
     <PackageReference Include="Fable.Core" Version="*"/>
-    <PackageReference Include="Fable.Browser.Css" Version="*"/>
   </ItemGroup>
 </Project>
