@@ -12,6 +12,10 @@ dispersion of the energy.
 [Try it now.](https://terryspitz.github.io/Pool/public/index.html)
 [![caustic](png/Screenshot.png)](https://terryspitz.github.io/Pool/public/index.html)
 
+[A short visual tutorial](https://terryspitz.github.io/Pool/public/tutorial.html) builds the image up
+step by step, from an undistorted grid to the finished caustics — also linked from the `?` button on
+the live page.
+
 ## Running it
 
 Plain JavaScript ES modules, with **no build step** — the browser loads the
