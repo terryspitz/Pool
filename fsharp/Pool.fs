@@ -308,8 +308,9 @@ let poolHtml time =
                         let B = b*c-a*d+v*x-u*y
                         let C = d*x-c*y
                         let B2_4AC = B*B - 4.0 * A*C
-                        // let sqrtB2_4AC = sqrt (max B2_4AC 0.0)
-                        let sqrtB2_4AC = sqrt B2_4AC
+                        // clamped: a negative discriminant gives NaN coordinates,
+                        // which the browser rejects and drops the whole path
+                        let sqrtB2_4AC = sqrt (max B2_4AC 0.0)
                         let sx = (-B - sqrtB2_4AC)/(2.0 * A)
                         let sy = (x-a*sx)/(c+u*sx)
                         //assert (B2_4AC>0.0)

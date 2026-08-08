@@ -50,9 +50,6 @@ Fable emits plain ES modules with relative imports, so no bundler is involved.
 `index.html` is the host page; `build/` is generated and git-ignored. Serving
 over http is required, as ES modules will not load over `file://`.
 
-Two things to expect. The console shows `<path> attribute d: Expected number`
-warnings: `screen_coords` takes `sqrt` of a discriminant that can go negative —
-the clamp is right there in `Pool.fs`, commented out — and the browser drops the
-affected paths. And `System.Random`'s seed is ignored under Fable, so the browser
-picks a different wave field on every load, while the `output.svg` route is
-reproducible. The two will not match each other.
+One thing to expect: `System.Random`'s seed is ignored under Fable, so the
+browser picks a different wave field on every load, while the `output.svg` route
+is reproducible. The two will not match each other.
