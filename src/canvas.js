@@ -5,7 +5,7 @@
 // with an alpha inversely proportional to its area, representing dispersion of
 // the energy.
 
-import { BRIGHTNESS, calcDerivsRow, makeColTable, marginCells } from './waves.js';
+import { BRIGHTNESS, INTENSITY, calcDerivsRow, makeColTable, marginCells } from './waves.js';
 
 export const BACKGROUND = '#146897'; // pool water, sampled from pool.jpg
 
@@ -39,6 +39,9 @@ export function draw(ctx, time, res) {
   ctx.scale(ch, ch);
   ctx.fillStyle = BACKGROUND;
   ctx.fillRect(0, 0, cw, ch);
+  // scales every caustic quad's alpha uniformly, background excluded, so it
+  // behaves as a real dimmer rather than shifting where patches saturate
+  ctx.globalAlpha = INTENSITY;
 
   // two rows of offsets at a time, swapped rather than copied
   let a1x = d1x, a1y = d1y, a2x = d2x, a2y = d2y;
@@ -76,4 +79,6 @@ export function draw(ctx, time, res) {
     const tx = a1x, ty = a1y;
     a1x = a2x; a1y = a2y; a2x = tx; a2y = ty;
   }
+
+  ctx.globalAlpha = 1;
 }

@@ -7,10 +7,32 @@ export const FREQ = 9;
 const SIDE = 2 * FREQ + 1;
 export const WAVE_COUNT = SIDE * SIDE;
 
-export const SPEED = 0.002;
-export const SCALING = 0.1;
-/// alpha of a refracted patch is min(BRIGHTNESS / area, 1)
-export const BRIGHTNESS = 0.6;
+// User-adjustable settings, wired up to sliders in app.js. `export let` so
+// canvas.js/gpu.js see live values; other modules can't assign an imported
+// binding directly, so mutate these only through the setters below.
+export let SPEED = 0.002;
+export let SCALING = 0.1;
+/// raw alpha of a refracted patch is min(BRIGHTNESS / area, 1): this only
+/// shapes *where* a patch saturates to fully opaque, so away from that
+/// threshold it barely moves the picture — reciprocals fall off slowly, so
+/// even large changes here leave the caustic network looking about as wide
+/// and solid. Lower than the "natural" 0.6 so peaks don't blow out quite as
+/// readily. The Brightness slider drives INTENSITY below instead, which
+/// actually behaves like a dimmer.
+export const BRIGHTNESS = 0.45;
+/// final multiplier on the already-clamped alpha, applied after BRIGHTNESS.
+/// Unlike BRIGHTNESS, this scales the whole image uniformly - including the
+/// saturated cores - so it behaves like an actual dimmer/exposure control.
+/// Past ~0.5 the saturated cores dominate and further increases mostly widen
+/// the washed-out area rather than adding useful detail, so the default and
+/// the Brightness slider's range both stay well under 1. Keep in sync with
+/// the slider's default in public/index.html.
+export let INTENSITY = 0.3;
+
+export const setSpeed = (v) => { SPEED = v; };
+export const setScaling = (v) => { SCALING = v; };
+export const setIntensity = (v) => { INTENSITY = v; };
+
 /// how many standard deviations of refraction offset the grid margin must cover
 const MARGIN_SIGMA = 4;
 
@@ -44,8 +66,10 @@ export const wavePhase = new Float64Array(WAVE_COUNT);
 
 // The grid is extended past the screen so refracted quads from off screen still
 // cover the edges. The offset is a sum of many cosines with independent phases,
-// so it is near Gaussian and MARGIN_SIGMA sigma covers it.
-const marginWorld = (() => {
+// so it is near Gaussian and MARGIN_SIGMA sigma covers it. Depends on SCALING,
+// which the amplitude slider can change at runtime, so this is recomputed
+// rather than cached — cheap next to the per-cell work in the callers.
+function marginWorld() {
   let vx = 0, vy = 0;
   for (let i = -FREQ; i <= FREQ; i++)
     for (let j = -FREQ; j <= FREQ; j++) {
@@ -54,10 +78,10 @@ const marginWorld = (() => {
       vy += (a * j) ** 2 / 2;
     }
   return MARGIN_SIGMA * SCALING * Math.sqrt(Math.max(vx, vy));
-})();
+}
 
 /// the margin above, expressed in grid cells of size ds
-export const marginCells = (ds) => Math.max(5, Math.ceil(marginWorld / ds));
+export const marginCells = (ds) => Math.max(5, Math.ceil(marginWorld() / ds));
 
 /// Wave data packed for the GPU: (i, j, amplitude, phase) per non-zero wave.
 export function packWaves() {
