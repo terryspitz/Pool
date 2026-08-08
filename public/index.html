@@ -59,21 +59,19 @@
   }
   canvas { display: block; }
   /* overlay rather than canvas text, so it is not redrawn every frame */
-  #stats, #hint {
+  #stats {
     position: fixed;
-    left: 8px;
+    right: 8px;
+    bottom: 8px;
     font: 14px Georgia, serif;
     color: #000;
     pointer-events: none;
   }
-  #hint { top: 8px; }
-  #stats { top: 28px; }
   </style>
   <link rel="shortcut icon" href="favicon.ico" />
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <div id="hint">Click the pool, or press space, to pause/play. Try ?mode=canvas or ?res=2</div>
   <div id="stats"></div>
 
   <button id="play-toggle" class="icon-button" title="Pause/play (space)">&#10074;&#10074;</button>

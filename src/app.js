@@ -23,9 +23,8 @@ const ctx = useGpu ? null : canvas.getContext('2d');
 /// pixels per grid cell. The GPU evaluates the waves per vertex in parallel, so
 /// it affords a much finer grid than the canvas renderer; 8 is a conservative
 /// default meant to hold 60fps on integrated graphics. Pass ?res=4 or ?res=2 for
-/// a finer mesh. The canvas renderer alternates coarse/fine to stay responsive.
-let counter = 200;
-const defaultRes = () => (useGpu ? 8 : (counter % 300 < 250 ? 30 : 10));
+/// a finer mesh, or use the Detail slider.
+const defaultRes = useGpu ? 8 : 30;
 // "Detail" slider: divides the effective res, so higher = finer/slower.
 let qualityMultiplier = 1;
 
@@ -52,9 +51,8 @@ function showStats() {
 
 function update() {
   const start = performance.now();
-  counter++;
   timeMs += 2;
-  const res = (requestedRes ?? defaultRes()) / qualityMultiplier;
+  const res = (requestedRes ?? defaultRes) / qualityMultiplier;
   if (useGpu) gpu.draw(timeMs, res);
   else canvasRenderer.draw(ctx, timeMs, res);
   renderMsSinceStats += performance.now() - start;
