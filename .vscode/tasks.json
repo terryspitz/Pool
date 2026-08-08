@@ -2,56 +2,45 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "serve",
+			"detail": "Static server over the repo root; open /public/index.html",
+			"type": "shell",
+			"command": "npx --yes serve . --listen 3000",
+			"isBackground": true,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			},
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^(?!x)x$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*",
+					"endsPattern": "Local:"
+				}
+			}
+		},
+		{
+			"label": "bench",
+			"detail": "Separable wave evaluation: accuracy and speed, in node",
 			"type": "npm",
-			"script": "start",
-			"problemMatcher": [],
-			"label": "npm: start",
-			"detail": "webpack-dev-server",
-            "group": "build",
-			// "group": {
-			// 	"kind": "build",
-			// 	"isDefault": true
-			// }
+			"script": "bench",
+			"group": "test",
+			"problemMatcher": []
 		},
 		{
+			"label": "bench-web",
+			"detail": "Both renderers, in headless Chromium",
 			"type": "npm",
-			"script": "install",
-			"label": "npm: install",
-			"detail": "install dependencies from package",
-			"group": "build",
-			"problemMatcher": "$fable-webpack",
-		},
-		{
-            "type": "npm",
-            "script": "build-dev",
-            "detail": "webpack-dev-server",
-            "group": "build",
-			"label": "npm: build-dev",
-			"problemMatcher": "$fable-webpack",
-		},
-		{
-            "type": "npm",
-            "script": "build-prod",
-            "detail": "webpack-dev-server",
-            "group": "build",
-			"label": "npm: build-prod",
-			"problemMatcher": "$fable-webpack",
-		},
-        {
-            "label": "build",
-            "command": "dotnet",
-            "type": "shell",
-            "args": [
-				"build",
-				"./Pool.sln",
-                "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
-            ],
-            "group": "build",
-            "presentation": {
-                "reveal": "silent"
-            },
-            "problemMatcher": "$msCompile"
-        },
+			"script": "bench-web",
+			"group": "test",
+			"problemMatcher": []
+		}
 	]
 }
