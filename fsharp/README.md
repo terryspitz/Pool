@@ -25,9 +25,34 @@ Needs the [.NET SDK](https://dotnet.microsoft.com/download) 10.0 or newer.
     dotnet build Pool.sln
     dotnet test Pool.sln
 
-`tests/Program.fs` is an entry point that writes a frame to `output.svg`, which is
-the easiest way to look at what this produces without a browser.
+## One frame, as a file
 
-To run it in a browser you would need the Fable toolchain
-(`dotnet tool restore` with a manifest pinning `fable`, then `dotnet fable`) and a
-bundler; neither is configured here any more.
+`tests/Program.fs` is an entry point that writes a frame to `output.svg` in this
+directory:
+
+    dotnet run --project tests/PoolTest.fsproj
+
+`poolHtml` returns a complete standalone `<svg>` document, so that file opens
+directly in a browser over `file://`. Most of the run time is `Program.fs`
+formatting the whole thing with `printfn "%A"`; generating the frame is about
+20 ms.
+
+## Animated, in a browser
+
+`App.fs` fills the element with id `pool` and drives `requestAnimationFrame`.
+Compiling it needs the Fable toolchain, pinned in `dotnet-tools.json`:
+
+    dotnet tool restore
+    dotnet fable App.fsproj --outDir build
+    npx serve .                            # then open /index.html
+
+Fable emits plain ES modules with relative imports, so no bundler is involved.
+`index.html` is the host page; `build/` is generated and git-ignored. Serving
+over http is required, as ES modules will not load over `file://`.
+
+Two things to expect. The console shows `<path> attribute d: Expected number`
+warnings: `screen_coords` takes `sqrt` of a discriminant that can go negative —
+the clamp is right there in `Pool.fs`, commented out — and the browser drops the
+affected paths. And `System.Random`'s seed is ignored under Fable, so the browser
+picks a different wave field on every load, while the `output.svg` route is
+reproducible. The two will not match each other.
