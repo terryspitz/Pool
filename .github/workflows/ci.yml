@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+# The page is plain JavaScript with no build step, so CI just runs the checks in
+# bench/. The F# implementation under fsharp/ is deliberately not built here.
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - run: npm ci
+    - name: Install Chromium for the renderer checks
+      run: npx playwright-core install --with-deps chromium
+    - name: Separable wave evaluation, accuracy and speed
+      run: npm run bench
+    - name: Both renderers draw, and agree
+      run: npm run bench-web
