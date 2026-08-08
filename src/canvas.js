@@ -5,7 +5,7 @@
 // with an alpha inversely proportional to its area, representing dispersion of
 // the energy.
 
-import { BRIGHTNESS, INTENSITY, calcDerivsRow, makeColTable, marginCells } from './waves.js';
+import { BRIGHTNESS, FREQ, INTENSITY, calcDerivsRow, makeColTable, marginCells } from './waves.js';
 
 export const BACKGROUND = '#146897'; // pool water, sampled from pool.jpg
 
@@ -29,7 +29,7 @@ export function draw(ctx, time, res) {
   const margin = marginCells(ds);
   const cols = w + margin * 2;
 
-  if (!tab || tab.cols !== cols || tab.ds !== ds || tab.margin !== margin) {
+  if (!tab || tab.cols !== cols || tab.ds !== ds || tab.margin !== margin || tab.freq !== FREQ) {
     tab = makeColTable(cols, ds, margin);
     d1x = new Float64Array(cols); d1y = new Float64Array(cols);
     d2x = new Float64Array(cols); d2y = new Float64Array(cols);

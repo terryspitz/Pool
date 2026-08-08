@@ -14,7 +14,7 @@
 //    than flat per quad. That drops the quantisation into 101 colour steps and
 //    the faint seams between neighbouring quads.
 
-import { BRIGHTNESS, INTENSITY, SCALING, SPEED, marginCells, packWaves } from './waves.js';
+import { BRIGHTNESS, FREQ, INTENSITY, SCALING, SPEED, marginCells, packWaves } from './waves.js';
 
 const BACKGROUND_RGB = [0x14, 0x68, 0x97]; // pool water, sampled from pool.jpg
 const CAUSTIC_RGB = [155, 255, 255];
@@ -131,16 +131,16 @@ class Renderer {
       'uAlphaGain', 'uOrigin', 'uDs', 'uGridW', 'uViewScale', 'uViewOffset', 'uColour', 'uIntensity'])
       this.u[name] = gl.getUniformLocation(program, name);
 
-    // the whole wave spectrum as an Nx1 RGBA32F texture, uploaded once
-    const { data, count } = packWaves();
-    this.waveCount = count;
+    // the wave spectrum as an Nx1 RGBA32F texture, re-uploaded only when the
+    // active FREQ (the Wavelengths slider) changes - see repackWaves below
     this.waveTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.waveTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, count, 1, 0, gl.RGBA, gl.FLOAT, data);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.freq = null;
+    this.repackWaves();
 
     // vertex positions come from gl_VertexID, so the index buffer is the only
     // geometry the GPU needs, and it only changes when the canvas is resized
@@ -155,6 +155,17 @@ class Renderer {
   }
 
   get vertexCount() { return this.gridCols * this.gridRows; }
+
+  /// Re-uploads the wave texture for the current active FREQ. Cheap next to a
+  /// frame's draw cost, but still only called when FREQ has actually changed.
+  repackWaves() {
+    const gl = this.gl;
+    const { data, count } = packWaves();
+    this.waveCount = count;
+    this.freq = FREQ;
+    gl.bindTexture(gl.TEXTURE_2D, this.waveTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, count, 1, 0, gl.RGBA, gl.FLOAT, data);
+  }
 
   buildIndices(cols, rows) {
     const gl = this.gl;
@@ -181,6 +192,7 @@ class Renderer {
   /// canvas renderer, but the GPU can afford it much finer.
   draw(time, res) {
     const gl = this.gl;
+    if (this.freq !== FREQ) this.repackWaves();
     const cw = this.canvas.width, ch = this.canvas.height;
     const minDim = Math.min(cw, ch);
     const ds = res / minDim;

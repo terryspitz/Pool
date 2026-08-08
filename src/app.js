@@ -2,7 +2,7 @@
 
 import * as canvasRenderer from './canvas.js';
 import * as gpuRenderer from './gpu.js';
-import { setIntensity, setScaling, setSpeed } from './waves.js';
+import { setFreq, setIntensity, setScaling, setSpeed } from './waves.js';
 
 const params = new URLSearchParams(window.location.search);
 const requestedMode = params.get('mode');
@@ -84,6 +84,7 @@ const brightnessSlider = document.getElementById('brightness-slider');
 const speedSlider = document.getElementById('speed-slider');
 const amplitudeSlider = document.getElementById('amplitude-slider');
 const qualitySlider = document.getElementById('quality-slider');
+const wavelengthsSlider = document.getElementById('wavelengths-slider');
 
 function togglePlay() {
   running = !running;
@@ -112,6 +113,7 @@ brightnessSlider.oninput = () => { setIntensity(parseFloat(brightnessSlider.valu
 speedSlider.oninput = () => { setSpeed(parseFloat(speedSlider.value)); refreshIfPaused(); };
 amplitudeSlider.oninput = () => { setScaling(parseFloat(amplitudeSlider.value)); refreshIfPaused(); };
 qualitySlider.oninput = () => { qualityMultiplier = parseFloat(qualitySlider.value); refreshIfPaused(); };
+wavelengthsSlider.oninput = () => { setFreq(parseFloat(wavelengthsSlider.value)); refreshIfPaused(); };
 
 canvas.onclick = togglePlay;
 window.onresize = resize;
