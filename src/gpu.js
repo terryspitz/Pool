@@ -14,7 +14,7 @@
 //    than flat per quad. That drops the quantisation into 101 colour steps and
 //    the faint seams between neighbouring quads.
 
-import { BRIGHTNESS, SCALING, SPEED, marginCells, packWaves } from './waves.js';
+import { BRIGHTNESS, INTENSITY, SCALING, SPEED, marginCells, packWaves } from './waves.js';
 
 const BACKGROUND_RGB = [0x14, 0x68, 0x97]; // pool water, sampled from pool.jpg
 const CAUSTIC_RGB = [155, 255, 255];
@@ -90,11 +90,15 @@ const FRAGMENT_SHADER = `#version 300 es
 precision mediump float;
 
 uniform vec3 uColour;
+// scales the already-clamped alpha uniformly, so it dims/brightens the whole
+// image - including saturated cores - unlike uBrightness in the vertex
+// shader, which only shifts where a patch saturates
+uniform float uIntensity;
 in float vAlpha;
 out vec4 fragColour;
 
 void main() {
-    fragColour = vec4(uColour, clamp(vAlpha, 0.0, 1.0));
+    fragColour = vec4(uColour, clamp(vAlpha, 0.0, 1.0) * uIntensity);
 }
 `;
 
@@ -124,7 +128,7 @@ class Renderer {
 
     this.u = {};
     for (const name of ['uWaves', 'uNumWaves', 'uDrift', 'uScaling', 'uBrightness',
-      'uAlphaGain', 'uOrigin', 'uDs', 'uGridW', 'uViewScale', 'uViewOffset', 'uColour'])
+      'uAlphaGain', 'uOrigin', 'uDs', 'uGridW', 'uViewScale', 'uViewOffset', 'uColour', 'uIntensity'])
       this.u[name] = gl.getUniformLocation(program, name);
 
     // the whole wave spectrum as an Nx1 RGBA32F texture, uploaded once
@@ -209,6 +213,7 @@ class Renderer {
     gl.uniform2f(this.u.uViewScale, 2 * minDim / cw, -2 * minDim / ch);
     gl.uniform2f(this.u.uViewOffset, -1, 1);
     gl.uniform3f(this.u.uColour, ...CAUSTIC_RGB.map((c) => c / 255));
+    gl.uniform1f(this.u.uIntensity, INTENSITY);
 
     gl.drawElements(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_INT, 0);
   }

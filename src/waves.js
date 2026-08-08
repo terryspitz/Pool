@@ -12,13 +12,22 @@ export const WAVE_COUNT = SIDE * SIDE;
 // binding directly, so mutate these only through the setters below.
 export let SPEED = 0.002;
 export let SCALING = 0.1;
-/// alpha of a refracted patch is min(BRIGHTNESS / area, 1). Lower than the
-/// "natural" 0.6 so caustic peaks don't blow out to solid white.
-export let BRIGHTNESS = 0.45;
+/// raw alpha of a refracted patch is min(BRIGHTNESS / area, 1): this only
+/// shapes *where* a patch saturates to fully opaque, so away from that
+/// threshold it barely moves the picture — reciprocals fall off slowly, so
+/// even large changes here leave the caustic network looking about as wide
+/// and solid. Lower than the "natural" 0.6 so peaks don't blow out quite as
+/// readily. The Brightness slider drives INTENSITY below instead, which
+/// actually behaves like a dimmer.
+export const BRIGHTNESS = 0.45;
+/// final multiplier on the already-clamped alpha, applied after BRIGHTNESS.
+/// Unlike BRIGHTNESS, this scales the whole image uniformly - including the
+/// saturated cores - so it behaves like an actual dimmer/exposure control.
+export let INTENSITY = 1;
 
 export const setSpeed = (v) => { SPEED = v; };
 export const setScaling = (v) => { SCALING = v; };
-export const setBrightness = (v) => { BRIGHTNESS = v; };
+export const setIntensity = (v) => { INTENSITY = v; };
 
 /// how many standard deviations of refraction offset the grid margin must cover
 const MARGIN_SIGMA = 4;

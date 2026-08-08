@@ -2,7 +2,7 @@
 
 import * as canvasRenderer from './canvas.js';
 import * as gpuRenderer from './gpu.js';
-import { setBrightness, setScaling, setSpeed } from './waves.js';
+import { setIntensity, setScaling, setSpeed } from './waves.js';
 
 const params = new URLSearchParams(window.location.search);
 const requestedMode = params.get('mode');
@@ -108,7 +108,7 @@ function refreshIfPaused() {
   if (!running) update();
 }
 
-brightnessSlider.oninput = () => { setBrightness(parseFloat(brightnessSlider.value)); refreshIfPaused(); };
+brightnessSlider.oninput = () => { setIntensity(parseFloat(brightnessSlider.value)); refreshIfPaused(); };
 speedSlider.oninput = () => { setSpeed(parseFloat(speedSlider.value)); refreshIfPaused(); };
 amplitudeSlider.oninput = () => { setScaling(parseFloat(amplitudeSlider.value)); refreshIfPaused(); };
 qualitySlider.oninput = () => { qualityMultiplier = parseFloat(qualitySlider.value); refreshIfPaused(); };
