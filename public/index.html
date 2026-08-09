@@ -30,6 +30,102 @@
   #play-toggle { right: 12px; }
   #fullscreen-toggle { right: 60px; }
   #settings-toggle { right: 108px; }
+  #tutorial-toggle { right: 156px; }
+  #tutorial-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: none;
+    pointer-events: none;
+  }
+  #tutorial-panel {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 21;
+    width: calc(100% - 48px);
+    max-width: 480px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.72);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 10px;
+    display: none;
+  }
+  #tutorial-panel.open {
+    display: block;
+  }
+  #tutorial-step-label {
+    margin: 0 0 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9fd6ff;
+  }
+  #tutorial-title {
+    margin: 0 0 6px;
+    font-size: 16px;
+  }
+  #tutorial-body {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #dde6ee;
+  }
+  #tutorial-ramp {
+    display: block;
+    margin: 0 0 14px;
+  }
+  #tutorial-ramp[hidden] {
+    display: none;
+  }
+  #tutorial-ramp-readout {
+    display: block;
+    font-size: 12px;
+    color: #9fd6ff;
+    font-variant-numeric: tabular-nums;
+  }
+  #tutorial-ramp-slider {
+    width: 100%;
+    margin-top: 6px;
+  }
+  #tutorial-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #tutorial-panel button {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #tutorial-panel button:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
+  #tutorial-panel button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  #tutorial-panel #tutorial-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #cfe1ee;
+    padding: 2px 6px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  #tutorial-close:hover {
+    color: white;
+  }
   #settings-panel {
     position: fixed;
     top: 60px;
@@ -87,11 +183,13 @@
 </head>
 <body>
   <canvas id="canvas"></canvas>
+  <canvas id="tutorial-canvas"></canvas>
   <div id="stats"></div>
 
   <button id="play-toggle" class="icon-button" title="Pause/play (space)">&#10074;&#10074;</button>
   <button id="fullscreen-toggle" class="icon-button" title="Toggle fullscreen (F11)">&#9974;</button>
   <button id="settings-toggle" class="icon-button" title="Settings">&#9776;</button>
+  <button id="tutorial-toggle" class="icon-button" title="How the caustics are made">?</button>
 
   <div id="settings-panel">
     <label>Brightness
@@ -110,6 +208,21 @@
       <input id="wavelengths-slider" type="range" min="1" max="14" step="1" value="9">
     </label>
     <button id="randomise-button" title="Shift every slider to a random value">&#127922; Randomise</button>
+  </div>
+
+  <div id="tutorial-panel">
+    <button id="tutorial-close" title="Exit tutorial">&times;</button>
+    <p id="tutorial-step-label"></p>
+    <h3 id="tutorial-title"></h3>
+    <p id="tutorial-body"></p>
+    <label id="tutorial-ramp" hidden>
+      <span id="tutorial-ramp-readout"></span>
+      <input id="tutorial-ramp-slider" type="range">
+    </label>
+    <div id="tutorial-controls">
+      <button id="tutorial-back">Back</button>
+      <button id="tutorial-next">Next</button>
+    </div>
   </div>
 
   <script type="module" src="../src/app.js"></script>

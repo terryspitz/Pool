@@ -12,6 +12,20 @@ dispersion of the energy.
 [Try it now.](https://terryspitz.github.io/Pool/public/index.html)
 [![caustic](png/Screenshot.png)](https://terryspitz.github.io/Pool/public/index.html)
 
+The `?` button on [the live page](https://terryspitz.github.io/Pool/public/index.html) opens a short
+tutorial that steps through how the image is built — undistorted grid, the sum of cosines, refraction,
+quad area as brightness — without ever pausing the animation underneath, so the last step is just the
+tutorial getting out of the way.
+
+The sum-of-cosines step drives the same `FREQ` cutoff the Wavelengths slider does, ramping it from 1
+up to the current setting so the grid visibly gains detail as more cosines enter the sum, alongside a
+panel of the `(i, j)` spectrum showing which pairs are active and how sharply amplitude falls off.
+
+The step carries its own slider, which follows the ramp and can be grabbed to scrub the cutoff
+directly. Taking hold of it ends the automatic sweep for good, and — unlike the sweep, which is put
+back on the way out so the Wavelengths slider never stops matching the picture — a hand-picked cutoff
+is treated as a deliberate setting: it sticks, and the Wavelengths slider follows it.
+
 ## Running it
 
 Plain JavaScript ES modules, with **no build step** — the browser loads the
@@ -36,6 +50,7 @@ per frame and the active renderer are shown in the corner.
     src/waves.js    the wave field and the refraction offsets it produces
     src/canvas.js   2D canvas renderer
     src/gpu.js      WebGL2 renderer
+    src/tutorial.js the in-page "how it's made" walkthrough
     src/app.js      renderer selection, animation loop, stats
     public/         the page
     bench/          accuracy and performance checks

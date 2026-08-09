@@ -2,6 +2,7 @@
 
 import * as canvasRenderer from './canvas.js';
 import * as gpuRenderer from './gpu.js';
+import * as tutorial from './tutorial.js';
 import { setFreq, setIntensity, setScaling, setSpeed } from './waves.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -55,6 +56,7 @@ function update() {
   const res = (requestedRes ?? defaultRes) / qualityMultiplier;
   if (useGpu) gpu.draw(timeMs, res);
   else canvasRenderer.draw(ctx, timeMs, res);
+  tutorial.renderFrame(timeMs);
   renderMsSinceStats += performance.now() - start;
   framesSinceStats++;
   showStats();
@@ -84,12 +86,13 @@ const randomiseButton = document.getElementById('randomise-button');
 
 // Each slider paired with the setter that applies its value, so randomise()
 // below can drive every slider through the same path as a manual drag.
+const wavelengthsSlider = document.getElementById('wavelengths-slider');
 const sliders = [
   { el: document.getElementById('brightness-slider'), apply: setIntensity },
   { el: document.getElementById('speed-slider'), apply: setSpeed },
   { el: document.getElementById('amplitude-slider'), apply: setScaling },
   { el: document.getElementById('quality-slider'), apply: (v) => { qualityMultiplier = v; } },
-  { el: document.getElementById('wavelengths-slider'), apply: setFreq },
+  { el: wavelengthsSlider, apply: setFreq },
 ];
 
 function togglePlay() {
@@ -149,5 +152,11 @@ document.body.onkeydown = (e) => {
   }
 };
 
+// The tutorial's own cutoff scrubber shares FREQ with the Wavelengths slider,
+// so a cutoff picked there is mirrored back onto it.
+tutorial.init({
+  onRedrawNeeded: refreshIfPaused,
+  onFreqCommit: (v) => { wavelengthsSlider.value = String(v); },
+});
 resize();
 animate();
