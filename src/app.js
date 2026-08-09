@@ -3,7 +3,7 @@
 import * as canvasRenderer from './canvas.js';
 import * as gpuRenderer from './gpu.js';
 import * as tutorial from './tutorial.js';
-import { setIntensity, setScaling, setSpeed } from './waves.js';
+import { setFreq, setIntensity, setScaling, setSpeed } from './waves.js';
 
 const params = new URLSearchParams(window.location.search);
 const requestedMode = params.get('mode');
@@ -82,10 +82,17 @@ const playToggleButton = document.getElementById('play-toggle');
 const fullscreenButton = document.getElementById('fullscreen-toggle');
 const settingsToggleButton = document.getElementById('settings-toggle');
 const settingsPanel = document.getElementById('settings-panel');
-const brightnessSlider = document.getElementById('brightness-slider');
-const speedSlider = document.getElementById('speed-slider');
-const amplitudeSlider = document.getElementById('amplitude-slider');
-const qualitySlider = document.getElementById('quality-slider');
+const randomiseButton = document.getElementById('randomise-button');
+
+// Each slider paired with the setter that applies its value, so randomise()
+// below can drive every slider through the same path as a manual drag.
+const sliders = [
+  { el: document.getElementById('brightness-slider'), apply: setIntensity },
+  { el: document.getElementById('speed-slider'), apply: setSpeed },
+  { el: document.getElementById('amplitude-slider'), apply: setScaling },
+  { el: document.getElementById('quality-slider'), apply: (v) => { qualityMultiplier = v; } },
+  { el: document.getElementById('wavelengths-slider'), apply: setFreq },
+];
 
 function togglePlay() {
   running = !running;
@@ -110,10 +117,28 @@ function refreshIfPaused() {
   if (!running) update();
 }
 
-brightnessSlider.oninput = () => { setIntensity(parseFloat(brightnessSlider.value)); refreshIfPaused(); };
-speedSlider.oninput = () => { setSpeed(parseFloat(speedSlider.value)); refreshIfPaused(); };
-amplitudeSlider.oninput = () => { setScaling(parseFloat(amplitudeSlider.value)); refreshIfPaused(); };
-qualitySlider.oninput = () => { qualityMultiplier = parseFloat(qualitySlider.value); refreshIfPaused(); };
+for (const { el, apply } of sliders) {
+  el.oninput = () => { apply(parseFloat(el.value)); refreshIfPaused(); };
+}
+
+/// A random value on the slider's own step grid, so it looks like a value the
+/// slider could have landed on by hand rather than an arbitrary float.
+function randomSliderValue(el) {
+  const min = parseFloat(el.min), max = parseFloat(el.max), step = parseFloat(el.step) || 1;
+  const steps = Math.round((max - min) / step);
+  return min + Math.round(Math.random() * steps) * step;
+}
+
+function randomise() {
+  for (const { el, apply } of sliders) {
+    const v = randomSliderValue(el);
+    el.value = v;
+    apply(v);
+  }
+  refreshIfPaused();
+}
+
+randomiseButton.onclick = randomise;
 
 canvas.onclick = togglePlay;
 window.onresize = resize;
