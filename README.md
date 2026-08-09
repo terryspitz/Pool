@@ -12,9 +12,10 @@ dispersion of the energy.
 [Try it now.](https://terryspitz.github.io/Pool/public/index.html)
 [![caustic](png/Screenshot.png)](https://terryspitz.github.io/Pool/public/index.html)
 
-The `?` button on the live page opens a short tutorial that steps through how the image is built —
-undistorted grid, refraction, quad area as brightness — without ever pausing the animation
-underneath, so the last step is just the tutorial getting out of the way.
+The `?` button on [the live page](https://terryspitz.github.io/Pool/public/index.html) opens a short
+tutorial that steps through how the image is built — undistorted grid, refraction, quad area as
+brightness — without ever pausing the animation underneath, so the last step is just the tutorial
+getting out of the way.
 
 ## Running it
 
