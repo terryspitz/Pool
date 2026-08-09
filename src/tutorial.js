@@ -18,8 +18,12 @@ const BACKGROUND = '#146897';
 const SHADE_BRIGHTNESS = 0.15;
 /// roughly this many grid cells across the shorter side of the window
 const COARSE_CELLS = 7;
-/// how long the "sum of cosines" step takes to ramp FREQ up to its target
-const RAMP_MS = 5000;
+/// How long the "sum of cosines" step takes to ramp FREQ up to its target.
+/// Slow enough that each cutoff holds for a moment before the next one lands,
+/// since the point is to watch detail arrive rather than to get to the end -
+/// and nobody has to wait it out, as the slider below can be grabbed at any
+/// point to scrub straight to a cutoff.
+const RAMP_MS = 12000;
 /// the ramp always climbs to at least this cutoff, so the step still shows
 /// something even if the Wavelengths slider is currently at its minimum
 const MIN_RAMP_TARGET = 4;
@@ -172,11 +176,16 @@ function drawFlatStage(ctx, canvas, time) {
 // Ramps the active frequency cutoff from 1 up to the target while drawing the
 // warped grid, so the surface visibly gains detail as more cosines enter the
 // sum. FREQ is shared global state, so applyStep/stop restore it on the way
-// out - see enterRamp below.
+// out - see releaseFreq below. The ramp yields as soon as the user grabs the
+// slider, so this stops driving FREQ the moment they take over.
 function drawWaveRampStage(ctx, canvas, time) {
-  const target = Math.max(savedFreq, MIN_RAMP_TARGET);
-  const t = Math.min(1, (performance.now() - stepEnteredAt) / RAMP_MS);
-  setFreq(1 + Math.round(t * (target - 1)));
+  if (rampAuto) {
+    const target = Math.max(savedFreq, MIN_RAMP_TARGET);
+    const t = Math.min(1, (performance.now() - stepEnteredAt) / RAMP_MS);
+    setFreq(1 + Math.round(t * (target - 1)));
+    syncRampControl();
+    if (t >= 1) rampAuto = false;
+  }
 
   beginFrame(ctx, canvas);
   ctx.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -218,7 +227,7 @@ const STEPS = [
   },
   {
     title: 'The surface is a sum of cosines',
-    body: 'Each frequency pair (i, j) in the panel is one cosine ripple travelling its own direction, with amplitude falling off as 1/(i²+j²) — so the long, lazy waves dominate and the short ones only add texture. Watch the grid gain detail as more of them enter the sum.',
+    body: 'Each frequency pair (i, j) in the panel is one cosine ripple travelling its own direction, with amplitude falling off as 1/(i²+j²) — so the long, lazy waves dominate and the short ones only add texture. They join the sum a few at a time below; grab the slider at any point to sweep the cutoff yourself.',
     draw: drawWaveRampStage,
   },
   {
@@ -239,6 +248,11 @@ const STEPS = [
 ];
 
 let overlayCanvas, panel, titleEl, bodyEl, stepLabelEl, backBtn, nextBtn;
+let rampControl, rampSlider, rampReadout;
+/// supplied by app.js: redraw when paused, and persist a hand-picked cutoff to
+/// the Wavelengths slider. Defaulted so the tutorial still runs without them.
+let onRedrawNeeded = () => {};
+let onFreqCommit = () => {};
 let active = false;
 let stepIndex = 0;
 /// FREQ as the page had it before the ramp step borrowed it, so it can be put
@@ -247,10 +261,33 @@ let stepIndex = 0;
 let savedFreq = FREQ;
 let stepEnteredAt = 0;
 let rampActive = false;
+/// true while the ramp is driving FREQ itself; cleared once it reaches the
+/// target or the moment the user grabs the slider
+let rampAuto = false;
 
 function resizeOverlay() {
   overlayCanvas.width = window.innerWidth;
   overlayCanvas.height = window.innerHeight;
+}
+
+/// Moves the step's slider and readout to whatever FREQ currently is.
+function syncRampControl() {
+  rampSlider.value = String(FREQ);
+  rampReadout.textContent =
+    `Frequencies up to ±${FREQ} — ${waveCountAt(FREQ)} cosines`;
+}
+
+/// The user grabbing the slider ends the automatic ramp and makes their choice
+/// stick: unlike the ramp's own sweep, a hand-picked cutoff is an intentional
+/// setting, so it becomes the value restored on the way out and is pushed to
+/// the Wavelengths slider rather than being reverted underneath them.
+function onRampInput() {
+  rampAuto = false;
+  setFreq(parseFloat(rampSlider.value));
+  savedFreq = FREQ;
+  onFreqCommit(FREQ);
+  syncRampControl();
+  onRedrawNeeded();
 }
 
 /// The ramp step drives the shared FREQ; every other step and exit path has to
@@ -259,17 +296,24 @@ function releaseFreq() {
   if (!rampActive) return;
   setFreq(savedFreq);
   rampActive = false;
+  rampAuto = false;
 }
 
 function applyStep() {
   const last = STEPS.length - 1;
   const step = STEPS[stepIndex];
 
-  if (step.draw === drawWaveRampStage) {
+  const onRamp = step.draw === drawWaveRampStage;
+  if (onRamp) {
     if (!rampActive) { savedFreq = FREQ; rampActive = true; }
+    // re-entering the step (via Back) replays the sweep from the start
+    rampAuto = true;
+    setFreq(1);
+    syncRampControl();
   } else {
     releaseFreq();
   }
+  rampControl.hidden = !onRamp;
   stepEnteredAt = performance.now();
 
   titleEl.textContent = step.title;
@@ -308,8 +352,12 @@ function back() {
 }
 
 /// Wires up the tutorial's DOM (overlay canvas, toggle button, panel). Call
-/// once at startup.
-export function init() {
+/// once at startup. `onRedrawNeeded` lets a scrub still repaint while the
+/// animation is paused; `onFreqCommit` reports a hand-picked cutoff so the
+/// page's own Wavelengths slider can follow it.
+export function init(hooks = {}) {
+  onRedrawNeeded = hooks.onRedrawNeeded ?? onRedrawNeeded;
+  onFreqCommit = hooks.onFreqCommit ?? onFreqCommit;
   overlayCanvas = document.getElementById('tutorial-canvas');
   panel = document.getElementById('tutorial-panel');
   titleEl = document.getElementById('tutorial-title');
@@ -317,8 +365,18 @@ export function init() {
   stepLabelEl = document.getElementById('tutorial-step-label');
   backBtn = document.getElementById('tutorial-back');
   nextBtn = document.getElementById('tutorial-next');
+  rampControl = document.getElementById('tutorial-ramp');
+  rampSlider = document.getElementById('tutorial-ramp-slider');
+  rampReadout = document.getElementById('tutorial-ramp-readout');
   const toggleBtn = document.getElementById('tutorial-toggle');
   const closeBtn = document.getElementById('tutorial-close');
+
+  // driven from MAX_FREQ rather than hard-coded in the markup, so the slider
+  // cannot drift out of range if the wave table's extent changes
+  rampSlider.min = '1';
+  rampSlider.max = String(MAX_FREQ);
+  rampSlider.step = '1';
+  rampSlider.oninput = onRampInput;
 
   toggleBtn.onclick = () => { if (active) stop(); else start(); };
   backBtn.onclick = back;

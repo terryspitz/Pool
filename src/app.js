@@ -86,12 +86,13 @@ const randomiseButton = document.getElementById('randomise-button');
 
 // Each slider paired with the setter that applies its value, so randomise()
 // below can drive every slider through the same path as a manual drag.
+const wavelengthsSlider = document.getElementById('wavelengths-slider');
 const sliders = [
   { el: document.getElementById('brightness-slider'), apply: setIntensity },
   { el: document.getElementById('speed-slider'), apply: setSpeed },
   { el: document.getElementById('amplitude-slider'), apply: setScaling },
   { el: document.getElementById('quality-slider'), apply: (v) => { qualityMultiplier = v; } },
-  { el: document.getElementById('wavelengths-slider'), apply: setFreq },
+  { el: wavelengthsSlider, apply: setFreq },
 ];
 
 function togglePlay() {
@@ -151,6 +152,11 @@ document.body.onkeydown = (e) => {
   }
 };
 
-tutorial.init();
+// The tutorial's own cutoff scrubber shares FREQ with the Wavelengths slider,
+// so a cutoff picked there is mirrored back onto it.
+tutorial.init({
+  onRedrawNeeded: refreshIfPaused,
+  onFreqCommit: (v) => { wavelengthsSlider.value = String(v); },
+});
 resize();
 animate();

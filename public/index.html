@@ -73,6 +73,23 @@
     line-height: 1.5;
     color: #dde6ee;
   }
+  #tutorial-ramp {
+    display: block;
+    margin: 0 0 14px;
+  }
+  #tutorial-ramp[hidden] {
+    display: none;
+  }
+  #tutorial-ramp-readout {
+    display: block;
+    font-size: 12px;
+    color: #9fd6ff;
+    font-variant-numeric: tabular-nums;
+  }
+  #tutorial-ramp-slider {
+    width: 100%;
+    margin-top: 6px;
+  }
   #tutorial-controls {
     display: flex;
     justify-content: space-between;
@@ -198,6 +215,10 @@
     <p id="tutorial-step-label"></p>
     <h3 id="tutorial-title"></h3>
     <p id="tutorial-body"></p>
+    <label id="tutorial-ramp" hidden>
+      <span id="tutorial-ramp-readout"></span>
+      <input id="tutorial-ramp-slider" type="range">
+    </label>
     <div id="tutorial-controls">
       <button id="tutorial-back">Back</button>
       <button id="tutorial-next">Next</button>

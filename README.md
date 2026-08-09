@@ -19,8 +19,12 @@ tutorial getting out of the way.
 
 The sum-of-cosines step drives the same `FREQ` cutoff the Wavelengths slider does, ramping it from 1
 up to the current setting so the grid visibly gains detail as more cosines enter the sum, alongside a
-panel of the `(i, j)` spectrum showing which pairs are active and how sharply amplitude falls off. It
-restores the cutoff on the way out, so the slider never stops matching the picture.
+panel of the `(i, j)` spectrum showing which pairs are active and how sharply amplitude falls off.
+
+The step carries its own slider, which follows the ramp and can be grabbed to scrub the cutoff
+directly. Taking hold of it ends the automatic sweep for good, and — unlike the sweep, which is put
+back on the way out so the Wavelengths slider never stops matching the picture — a hand-picked cutoff
+is treated as a deliberate setting: it sticks, and the Wavelengths slider follows it.
 
 ## Running it
 
