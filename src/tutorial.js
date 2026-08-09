@@ -5,37 +5,28 @@
 // stops animating - the overlay is simply removed on the last step, revealing
 // the full-resolution render that was running underneath the whole time.
 
-import { calcDerivsRow, makeColTable, marginCells } from './waves.js';
+import { FREQ, MAX_FREQ, calcDerivsRow, makeColTable, marginCells, setFreq, waveAmp, waveIndex }
+  from './waves.js';
 
 const cross = (x1, y1, x2, y2) => Math.abs(x1 * y2 - x2 * y1);
 const BACKGROUND = '#146897';
 
-// Steps 1-3 measure area in units of grid cells, same as canvas.js - but with
-// only a handful of cells across the screen instead of thousands, that unit
-// is much bigger, so shading needs its own, smaller brightness constant to
-// spread a visible bright-to-dim range across so few quads.
+// The shading step measures area in units of grid cells, same as canvas.js -
+// but with only a handful of cells across the screen instead of thousands,
+// that unit is much bigger, so it needs its own, smaller brightness constant
+// to spread a visible bright-to-dim range across so few quads.
 const SHADE_BRIGHTNESS = 0.15;
-// roughly this many grid cells across the shorter side of the window
+/// roughly this many grid cells across the shorter side of the window
 const COARSE_CELLS = 7;
+/// how long the "sum of cosines" step takes to ramp FREQ up to its target
+const RAMP_MS = 5000;
+/// the ramp always climbs to at least this cutoff, so the step still shows
+/// something even if the Wavelengths slider is currently at its minimum
+const MIN_RAMP_TARGET = 4;
 
-const STEPS = [
-  {
-    title: 'Start with a grid of light',
-    body: 'The incoming sunlight is modelled as a regular grid of squares, each one a patch of light hitting the water. If the surface were flat, this grid would never change.',
-  },
-  {
-    title: 'Waves bend every corner',
-    body: 'The water’s surface is a sum of 361 moving cosine waves (src/waves.js). What bends light is the slope of that surface, so every grid corner gets nudged sideways — turning each flat square into a warped quadrilateral.',
-  },
-  {
-    title: 'Squeezed quads are bright, stretched ones are dim',
-    body: 'Neighbouring corners move by different amounts, so some quads get squeezed into a small area — the same light packed tighter — while others stretch thin. alpha = min(BRIGHTNESS / area, 1).',
-  },
-  {
-    title: 'Zoom in, add colour, and let it move',
-    body: 'This is that same process running on the full-resolution grid, in the pool’s colour, at full speed — exactly what you’ll see once you close the tutorial.',
-  },
-];
+/// waves actually summed at a given frequency cutoff: the (2f+1)^2 grid of
+/// (i, j) pairs, less the (0,0) term, which carries no amplitude
+const waveCountAt = (freq) => (2 * freq + 1) ** 2 - 1;
 
 // Walks a coarse grid the same way canvas.js walks its fine one, handing each
 // quad's flat and refracted corners plus its refracted area to the callback.
@@ -108,10 +99,89 @@ function drawArrow(ctx, x1, y1, x2, y2, headLen) {
 
 const coarseRes = (canvas) => Math.max(8, Math.round(Math.min(canvas.width, canvas.height) / COARSE_CELLS));
 
+// ---------------------------------------------------------------------------
+// The spectrum inset: one dot per (i, j) frequency pair, the whole MAX_FREQ
+// square at once, with the pairs inside the active cutoff lit. It makes the
+// ramp below legible - you watch the lit block grow - and shows the 1/(i^2+j^2)
+// amplitude falloff directly, as a bright core fading outwards.
+// ---------------------------------------------------------------------------
+
+const INSET_SIZE = 150;
+const INSET_PAD = 18;
+
+/// largest |amplitude| in the table, so dot radii can be scaled against it.
+/// The table never changes, so this is computed once.
+const peakAmp = (() => {
+  let peak = 0;
+  for (const a of waveAmp) peak = Math.max(peak, Math.abs(a));
+  return peak;
+})();
+
+function drawSpectrumInset(ctx, canvas) {
+  const side = 2 * MAX_FREQ + 1;
+  const cell = INSET_SIZE / side;
+  const x0 = INSET_PAD, y0 = INSET_PAD;
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x0 - 8, y0 - 8, INSET_SIZE + 16, INSET_SIZE + 38);
+
+  // Cell size is fixed and amplitude drives brightness instead: scaling the
+  // marks by amplitude would let the steep 1/(i^2+j^2) falloff shrink the
+  // outer ones to nothing, hiding the very thing this panel is here to show -
+  // the active block growing. The exponent flattens that falloff enough to
+  // keep the edges readable while the core still reads as brightest.
+  const box = cell * 0.86;
+  for (let i = -MAX_FREQ; i <= MAX_FREQ; i++)
+    for (let j = -MAX_FREQ; j <= MAX_FREQ; j++) {
+      if (i === 0 && j === 0) continue;
+      const rel = Math.abs(waveAmp[waveIndex(i, j)]) / peakAmp;
+      const active = Math.abs(i) <= FREQ && Math.abs(j) <= FREQ;
+      ctx.fillStyle = active
+        ? `rgba(180,235,255,${(0.16 + 0.84 * rel ** 0.35).toFixed(3)})`
+        : `rgba(255,255,255,${(0.05 + 0.07 * rel ** 0.35).toFixed(3)})`;
+      ctx.fillRect(x0 + (i + MAX_FREQ) * cell + (cell - box) / 2,
+        y0 + (j + MAX_FREQ) * cell + (cell - box) / 2, box, box);
+    }
+
+  // outline the active cutoff, so the square being summed over is explicit
+  const lo = x0 + (MAX_FREQ - FREQ) * cell, span = (2 * FREQ + 1) * cell;
+  ctx.strokeStyle = 'rgba(255,220,120,0.9)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(lo, y0 + (MAX_FREQ - FREQ) * cell, span, span);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText(`${waveCountAt(FREQ)} cosines`, x0, y0 + INSET_SIZE + 20);
+
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Step drawers
+// ---------------------------------------------------------------------------
+
 function drawFlatStage(ctx, canvas, time) {
   beginFrame(ctx, canvas);
   ctx.strokeStyle = 'rgba(255,255,255,0.6)';
   forEachQuad(canvas, coarseRes(canvas), time, (flat) => strokeQuad(ctx, flat));
+}
+
+// Ramps the active frequency cutoff from 1 up to the target while drawing the
+// warped grid, so the surface visibly gains detail as more cosines enter the
+// sum. FREQ is shared global state, so applyStep/stop restore it on the way
+// out - see enterRamp below.
+function drawWaveRampStage(ctx, canvas, time) {
+  const target = Math.max(savedFreq, MIN_RAMP_TARGET);
+  const t = Math.min(1, (performance.now() - stepEnteredAt) / RAMP_MS);
+  setFreq(1 + Math.round(t * (target - 1)));
+
+  beginFrame(ctx, canvas);
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  forEachQuad(canvas, coarseRes(canvas), time, (flat, bent) => strokeQuad(ctx, bent));
+  drawSpectrumInset(ctx, canvas);
 }
 
 function drawBendStage(ctx, canvas, time) {
@@ -138,28 +208,76 @@ function drawShadeStage(ctx, canvas, time) {
   });
 }
 
-// One drawer per illustrated step; the final step has none - it just reveals
-// the live renderer underneath.
-const STAGE_DRAWERS = [drawFlatStage, drawBendStage, drawShadeStage];
+// The last step has no drawer: it hides the overlay and reveals the live
+// renderer that has been running underneath all along.
+const STEPS = [
+  {
+    title: 'Start with a grid of light',
+    body: 'The incoming sunlight is modelled as a regular grid of squares, each one a patch of light hitting the water. If the surface were flat, this grid would never change.',
+    draw: drawFlatStage,
+  },
+  {
+    title: 'The surface is a sum of cosines',
+    body: 'Each frequency pair (i, j) in the panel is one cosine ripple travelling its own direction, with amplitude falling off as 1/(i²+j²) — so the long, lazy waves dominate and the short ones only add texture. Watch the grid gain detail as more of them enter the sum.',
+    draw: drawWaveRampStage,
+  },
+  {
+    title: 'Waves bend every corner',
+    body: 'What bends light is the slope of that surface, so every grid corner gets nudged sideways by the time its ray reaches the bottom — turning each flat square into a warped quadrilateral.',
+    draw: drawBendStage,
+  },
+  {
+    title: 'Squeezed quads are bright, stretched ones are dim',
+    body: 'Neighbouring corners move by different amounts, so some quads get squeezed into a small area — the same light packed tighter — while others stretch thin. alpha = min(BRIGHTNESS / area, 1).',
+    draw: drawShadeStage,
+  },
+  {
+    title: 'Zoom in, add colour, and let it move',
+    body: 'This is that same process on the full-resolution grid, in the pool’s colour, at full speed — exactly what you’ll see once you close the tutorial.',
+    draw: null,
+  },
+];
 
 let overlayCanvas, panel, titleEl, bodyEl, stepLabelEl, backBtn, nextBtn;
 let active = false;
 let stepIndex = 0;
+/// FREQ as the page had it before the ramp step borrowed it, so it can be put
+/// back. Captured on entering that step rather than on opening the tutorial,
+/// so a Wavelengths slider change made in between is still respected.
+let savedFreq = FREQ;
+let stepEnteredAt = 0;
+let rampActive = false;
 
 function resizeOverlay() {
   overlayCanvas.width = window.innerWidth;
   overlayCanvas.height = window.innerHeight;
 }
 
+/// The ramp step drives the shared FREQ; every other step and exit path has to
+/// hand it back, or the Wavelengths slider would stop matching the picture.
+function releaseFreq() {
+  if (!rampActive) return;
+  setFreq(savedFreq);
+  rampActive = false;
+}
+
 function applyStep() {
   const last = STEPS.length - 1;
-  const { title, body } = STEPS[stepIndex];
-  titleEl.textContent = title;
-  bodyEl.textContent = body;
+  const step = STEPS[stepIndex];
+
+  if (step.draw === drawWaveRampStage) {
+    if (!rampActive) { savedFreq = FREQ; rampActive = true; }
+  } else {
+    releaseFreq();
+  }
+  stepEnteredAt = performance.now();
+
+  titleEl.textContent = step.title;
+  bodyEl.textContent = step.body;
   stepLabelEl.textContent = `Step ${stepIndex + 1} of ${STEPS.length}`;
   backBtn.disabled = stepIndex === 0;
   nextBtn.textContent = stepIndex === last ? 'Done' : 'Next';
-  overlayCanvas.style.display = stepIndex === last ? 'none' : 'block';
+  overlayCanvas.style.display = step.draw ? 'block' : 'none';
 }
 
 function start() {
@@ -171,6 +289,7 @@ function start() {
 }
 
 function stop() {
+  releaseFreq();
   active = false;
   panel.classList.remove('open');
   overlayCanvas.style.display = 'none';
@@ -211,7 +330,8 @@ export function init() {
 /// Called once per animation frame from app.js's loop; a no-op unless the
 /// tutorial is open on one of the illustrated (non-final) steps.
 export function renderFrame(time) {
-  if (!active || stepIndex >= STAGE_DRAWERS.length) return;
-  const ctx = overlayCanvas.getContext('2d');
-  STAGE_DRAWERS[stepIndex](ctx, overlayCanvas, time);
+  if (!active) return;
+  const { draw } = STEPS[stepIndex];
+  if (!draw) return;
+  draw(overlayCanvas.getContext('2d'), overlayCanvas, time);
 }

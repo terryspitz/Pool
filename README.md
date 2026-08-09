@@ -13,9 +13,14 @@ dispersion of the energy.
 [![caustic](png/Screenshot.png)](https://terryspitz.github.io/Pool/public/index.html)
 
 The `?` button on [the live page](https://terryspitz.github.io/Pool/public/index.html) opens a short
-tutorial that steps through how the image is built — undistorted grid, refraction, quad area as
-brightness — without ever pausing the animation underneath, so the last step is just the tutorial
-getting out of the way.
+tutorial that steps through how the image is built — undistorted grid, the sum of cosines, refraction,
+quad area as brightness — without ever pausing the animation underneath, so the last step is just the
+tutorial getting out of the way.
+
+The sum-of-cosines step drives the same `FREQ` cutoff the Wavelengths slider does, ramping it from 1
+up to the current setting so the grid visibly gains detail as more cosines enter the sum, alongside a
+panel of the `(i, j)` spectrum showing which pairs are active and how sharply amplitude falls off. It
+restores the cutoff on the way out, so the slider never stops matching the picture.
 
 ## Running it
 
