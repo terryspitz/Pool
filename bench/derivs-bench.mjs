@@ -3,11 +3,8 @@
 //
 // Run: npm run bench
 
-import { FREQ, SCALING, SPEED, calcDerivsRow, makeColTable, marginCells, waveAmp, wavePhase }
+import { FREQ, SCALING, SPEED, calcDerivsRow, makeColTable, marginCells, waveAmp, waveIndex, wavePhase }
   from '../src/waves.js';
-
-const SIDE = 2 * FREQ + 1;
-const wi = (i, j) => (i + FREQ) * SIDE + (j + FREQ);
 
 // The naive version: every wave, every column. Reads the same wave tables, so
 // the only difference is how the sum is arranged.
@@ -18,9 +15,9 @@ function naiveDerivs(dxs, dys, ds, y, margin, time) {
     let dx = 0, dy = 0;
     for (let i = -FREQ; i <= FREQ; i++)
       for (let j = -FREQ; j <= FREQ; j++) {
-        const amp = waveAmp[wi(i, j)];
+        const amp = waveAmp[waveIndex(i, j)];
         const theta = Math.PI * ((x + sgn(i) * SPEED * time) * i
-          + (y + sgn(j) * SPEED * time) * j + wavePhase[wi(i, j)]);
+          + (y + sgn(j) * SPEED * time) * j + wavePhase[waveIndex(i, j)]);
         const ct = Math.cos(theta);
         dx += amp * i * ct;
         dy += amp * j * ct;
@@ -53,7 +50,7 @@ for (let row = -margin; row < h + margin; row++) {
   }
 }
 
-console.log(`grid ${w}x${h} (res=${RES}), ${cols} columns/row, ${SIDE * SIDE} waves, margin ${margin} cells`);
+console.log(`grid ${w}x${h} (res=${RES}), ${cols} columns/row, ${(2 * FREQ + 1) ** 2} waves, margin ${margin} cells`);
 console.log(`  separable vs naive: max abs diff ${maxAbsErr.toExponential(3)} of peak ${maxAbs.toExponential(3)}`);
 if (maxAbsErr > 1e-9) {
   console.error('  FAIL: the two forms should agree to float precision');
